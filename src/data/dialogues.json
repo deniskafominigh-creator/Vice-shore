@@ -1,0 +1,149 @@
+{
+  "$comment": "Реплики героя (задача 9, GOAL §7). Триггеры — только события шины. priority: 10 idle … 70 победа. cooldown — секунды до повтора. file — путь внутри src/assets/voice; если файла нет, игра показывает субтитры (обязательный фолбэк).",
+  "lines": [
+    {
+      "id": "start_mission1",
+      "text": "Так, дом почти готов. Осталась эта стена.",
+      "trigger": "quest:started:mission_01",
+      "priority": 50,
+      "cooldown": 600,
+      "file": "voice/start_mission1.mp3"
+    },
+    {
+      "id": "take_roller",
+      "text": "Валик в руках. Держится удобно.",
+      "trigger": "item:pickup:roller",
+      "priority": 30,
+      "cooldown": 20,
+      "file": "voice/take_roller.mp3"
+    },
+    {
+      "id": "take_paint",
+      "text": "Краска есть. Теперь полоса за полосой, не спеша.",
+      "trigger": "item:pickup:paint",
+      "priority": 30,
+      "cooldown": 20,
+      "file": "voice/take_paint.mp3"
+    },
+    {
+      "id": "paint_start",
+      "text": "Поехали. Сверху вниз, ровно.",
+      "trigger": "paint:started",
+      "priority": 40,
+      "cooldown": 30,
+      "file": "voice/paint_start.mp3"
+    },
+    {
+      "id": "paint_dry",
+      "text": "Валик подсох. Надо макнуть.",
+      "trigger": "paint:dry",
+      "priority": 35,
+      "cooldown": 25,
+      "file": "voice/paint_dry.mp3"
+    },
+    {
+      "id": "paint_half",
+      "text": "Половина готова. Идёт ровно.",
+      "trigger": "paint:progress:half",
+      "priority": 40,
+      "cooldown": 600,
+      "file": "voice/paint_half.mp3"
+    },
+    {
+      "id": "wall_done",
+      "text": "Готово. Стена как новая.",
+      "trigger": "paint:completed",
+      "priority": 50,
+      "cooldown": 600,
+      "file": "voice/wall_done.mp3"
+    },
+    {
+      "id": "to_court",
+      "text": "Пора во двор. Там кольцо, а у меня руки чешутся.",
+      "trigger": "quest:started:mission_02",
+      "priority": 50,
+      "cooldown": 600,
+      "file": "voice/to_court.mp3"
+    },
+    {
+      "id": "take_ball",
+      "text": "Мяч в руках. Смотрим на кольцо.",
+      "trigger": "item:pickup:ball",
+      "priority": 30,
+      "cooldown": 20,
+      "file": "voice/take_ball.mp3"
+    },
+    {
+      "id": "throw",
+      "text": "Смотри, как надо.",
+      "trigger": "ball:throw",
+      "priority": 25,
+      "cooldown": 18,
+      "file": "voice/throw.mp3"
+    },
+    {
+      "id": "goal",
+      "text": "Есть! Чисто.",
+      "trigger": "ball:scored",
+      "priority": 60,
+      "cooldown": 6,
+      "file": "voice/goal.mp3"
+    },
+    {
+      "id": "miss",
+      "text": "Мимо. Ничего, ещё раз.",
+      "trigger": "ball:missed",
+      "priority": 45,
+      "cooldown": 8,
+      "file": "voice/miss.mp3"
+    },
+    {
+      "id": "goal_second",
+      "text": "Два из двух. Вот это я понимаю.",
+      "trigger": "ball:scored:final",
+      "priority": 65,
+      "cooldown": 600,
+      "file": "voice/goal_second.mp3"
+    },
+    {
+      "id": "win",
+      "text": "Всё, дело сделано: стена покрашена, два гола в кольце.",
+      "trigger": "quest:completed:mission_02",
+      "priority": 70,
+      "cooldown": 600,
+      "file": "voice/win.mp3"
+    },
+    {
+      "id": "idle_1",
+      "text": "Хороший день. Море тихое.",
+      "trigger": "idle",
+      "priority": 10,
+      "cooldown": 45,
+      "file": "voice/idle_1.mp3"
+    },
+    {
+      "id": "idle_2",
+      "text": "Дом почти готов. Осталось мелочи.",
+      "trigger": "idle",
+      "priority": 10,
+      "cooldown": 45,
+      "file": "voice/idle_2.mp3"
+    },
+    {
+      "id": "idle_3",
+      "text": "Солнце жарит — краска сохнет быстро.",
+      "trigger": "idle",
+      "priority": 10,
+      "cooldown": 45,
+      "file": "voice/idle_3.mp3"
+    },
+    {
+      "id": "idle_4",
+      "text": "Сетка на кольце ещё белая. Красиво.",
+      "trigger": "idle",
+      "priority": 10,
+      "cooldown": 45,
+      "file": "voice/idle_4.mp3"
+    }
+  ]
+}

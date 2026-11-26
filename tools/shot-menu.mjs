@@ -1,0 +1,15 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ args: ['--no-sandbox','--use-gl=swiftshader','--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const errs = [];
+page.on('pageerror', e => errs.push(e.message));
+page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+await page.goto('http://localhost:5173/', { waitUntil: 'domcontentloaded' });
+await page.waitForSelector('.menu:not(.is-hidden)', { timeout: 60000 });
+await page.waitForTimeout(1500);
+await page.screenshot({ path: 'shots/m1-menu.png' });
+await page.click('.menu-list__button:has-text("Играть")');
+await page.waitForTimeout(2000);
+await page.screenshot({ path: 'shots/m2-playing.png' });
+console.log(JSON.stringify({ errs }));
+await browser.close();

@@ -1,0 +1,300 @@
+/** Проект: VICE SHORE. Общие константы и настройки качества.
+ *  Значения не «магические»: всё геймплейное и визуальное живёт здесь (§5.7 GOAL.md). */
+
+export const GAME = {
+  /** Название игры меняется ТОЛЬКО здесь (см. GOAL.md §11, п.4). */
+  title: 'VICE SHORE',
+  subtitle: 'Вилла у моря',
+  version: '0.1.0',
+  /** Ключи localStorage — с версией, чтобы миграции были возможны. */
+  settingsKey: 'vice-shore.settings.v1',
+  saveKey: 'vice-shore.save.v1',
+} as const;
+
+export type QualityLevel = 'low' | 'medium' | 'high';
+
+export interface QualityPreset {
+  readonly label: string;
+  readonly pixelRatio: number;
+  readonly shadowMapSize: number;
+  /** Число сегментов плоскости моря (влияет на детализацию волн). */
+  readonly seaSegments: number;
+}
+
+export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
+  low: { label: 'Низкое', pixelRatio: 1, shadowMapSize: 512, seaSegments: 96 },
+  medium: { label: 'Среднее', pixelRatio: 1.25, shadowMapSize: 1024, seaSegments: 160 },
+  high: { label: 'Высокое', pixelRatio: 1.5, shadowMapSize: 2048, seaSegments: 256 },
+};
+
+export const QUALITY_ORDER: readonly QualityLevel[] = ['low', 'medium', 'high'];
+
+/** Палитра мира: тропический полдень по референсу заказчика (VISION.md §1). */
+export const PALETTE = {
+  skyZenith: 0x1f6cb4,
+  skyHorizon: 0xc3e2f2,
+  cloudLight: 0xffffff,
+  cloudShade: 0xa9bed0,
+  sunColor: 0xfff3dc,
+  seaReflect: 0x63a8c8,
+  seaDeep: 0x0a3c56,
+  seaShallow: 0x21a3b4,
+  limestone: 0xe6e0d2,
+  rock: 0x9a8d7a,
+  metal: 0x9aa3a8,
+  plant: 0x4d6b3c,
+  terracotta: 0xb4623f,
+  /** Белая обшивка дома и штакетник (референс). */
+  whiteWood: 0xf7f3ea,
+  darkWood: 0xa8825f,
+  grass: 0x78913f,
+  gravel: 0x9d968a,
+  courtSurface: 0x9a9a92,
+  bougainvillea: 0xc2456f,
+  /** Агавы: светлая зелень с жёлтым отливом (референс). */
+  agave: 0x7fa055,
+  /** Мокрый камень у воды. */
+  shoreStone: 0xefece5,
+} as const;
+
+/** Солнце: высоко (≈57°), чуть справа — яркий полдень, как на референсе. */
+export const SUN = {
+  direction: [0.55, 1.0, 0.4] as const,
+  distance: 180,
+} as const;
+
+/** Остров: эллиптическое плато над водой (задача 4).
+ *  Задача 13 увеличила карту: плато 156 × 116 м вместо 64 × 46 — на нём помещаются
+ *  шесть домов, улица между ними и сады. Старый участок с виллой остался в центре
+ *  без изменений, чтобы миссии 7–8 не сдвинулись ни на сантиметр. */
+export const ISLAND = {
+  /** Высота плато над уровнем моря, м. */
+  plateauTopY: 3.2,
+  radiusX: 78,
+  radiusZ: 58,
+  /** Насколько скала уходит под воду. */
+  cliffBottomY: -7,
+  walkMargin: 1.5,
+} as const;
+
+/** Островной посёлок (задача 13): пять домов вокруг старой виллы.
+ *  Координаты — центры домов, фасады смотрят на улицу/море. */
+export interface HouseSpec {
+  readonly id: string;
+  readonly name: string;
+  readonly x: number;
+  readonly z: number;
+  /** Поворот вокруг Y в радианах: 0 — фасад на +Z. */
+  readonly yaw: number;
+  readonly width: number;
+  readonly depth: number;
+  readonly floors: 0 | 1;
+  readonly wallColor: number;
+  readonly roofColor: number;
+  /** Терраса с бассейном перед домом. */
+  readonly pool: boolean;
+  /** Пергола с вьющимся растением на террасе. */
+  readonly pergola: boolean;
+}
+
+export const TOWN = {
+  /** Улица вдоль острова: от западной оконечности к восточной. */
+  streetZ: 26,
+  streetWidth: 5.4,
+  /** Отступ домов от улицы. */
+  frontGap: 7,
+  houses: [
+    {
+      id: 'house-se',
+      name: 'Дом у юго-восточной бухты',
+      x: 40,
+      z: 40,
+      yaw: Math.PI,
+      width: 14,
+      depth: 10,
+      floors: 1,
+      wallColor: 0xf6f1e6,
+      roofColor: 0xb4623f,
+      pool: true,
+      pergola: false,
+    },
+    {
+      id: 'house-e',
+      name: 'Стеклянный дом на востоке',
+      x: 58,
+      z: 14,
+      yaw: Math.PI * 0.78,
+      width: 12,
+      depth: 11,
+      floors: 1,
+      wallColor: 0xeae6dd,
+      roofColor: 0x8d9298,
+      pool: true,
+      pergola: true,
+    },
+    {
+      id: 'house-n',
+      name: 'Дом с перголой у северной аллеи',
+      x: 14,
+      z: 44,
+      yaw: 0,
+      width: 16,
+      depth: 9,
+      floors: 0,
+      wallColor: 0xfbf7ee,
+      roofColor: 0x6f7f86,
+      pool: false,
+      pergola: true,
+    },
+    {
+      id: 'house-w',
+      name: 'Западная вилла над обрывом',
+      x: -50,
+      z: 26,
+      yaw: Math.PI * 0.34,
+      width: 13,
+      depth: 10,
+      floors: 1,
+      wallColor: 0xf2ece0,
+      roofColor: 0x9c5a3c,
+      pool: false,
+      pergola: false,
+    },
+    {
+      id: 'house-sw',
+      name: 'Терракотовый дом в саду',
+      x: -30,
+      z: -38,
+      yaw: Math.PI * 0.06,
+      width: 15,
+      depth: 11,
+      floors: 1,
+      wallColor: 0xf7f0e2,
+      roofColor: 0xa8552f,
+      pool: true,
+      pergola: true,
+    },
+  ] satisfies readonly HouseSpec[],
+} as const;
+
+/** Участок с виллой: забор, калитка, дом, терраса. */
+export const PLOT = {
+  fenceMinX: -15.5,
+  fenceMaxX: 15.5,
+  fenceMinZ: -15.5,
+  fenceMaxZ: 12.5,
+  gateWidth: 3.8,
+  /** Пешеходная гравийная дорожка от калитки к дому. */
+  pathWidth: 3.2,
+  /** Проём в западной части забора — выход к баскетбольной площадке. */
+  sideGateWidth: 3.6,
+} as const;
+
+/** Вилла: габариты и положение (фасад смотрит на море, +Z). */
+export const VILLA = {
+  centerX: 0,
+  centerZ: -10.2,
+  width: 15,
+  depth: 9.6,
+  height: 3.5,
+  terraceDepth: 4.4,
+  roofOverhang: 0.9,
+} as const;
+
+/** Баскетбольная площадка (основа для задачи 8). */
+export const COURT = {
+  centerX: -22.5,
+  centerZ: 4,
+  length: 13,
+  width: 9,
+} as const;
+
+/** Высота пола, на которой стоят игрок и предметы (плато острова).
+ *  Старые поля оставлены до перестройки острова в задаче 4. */
+export const TERRACE = {
+  deckTopY: ISLAND.plateauTopY,
+  deckWidth: 22,
+  deckDepth: 16,
+  deckThickness: 1.4,
+  railingHeight: 1.05,
+  walkMargin: 0.75,
+  eyeHeight: 1.68,
+} as const;
+
+/** Шрифт субтитров реплик (задача 12). «Кинематограф» — новый шрифт по умолчанию:
+ *  прежний Inter казался заказчику слишком простым для голоса героя. */
+export type SubtitleFont = 'film' | 'display' | 'mono' | 'plain';
+
+export const SUBTITLE_FONTS: readonly SubtitleFont[] = ['film', 'display', 'mono', 'plain'];
+
+export const SUBTITLE_FONT_LABELS: Record<SubtitleFont, string> = {
+  film: 'Кинематограф',
+  display: 'Дисплей',
+  mono: 'Машинка',
+  plain: 'Нейтральный',
+};
+
+/** Фон плашки субтитров: от «киноплёнки» до полностью прозрачного. */
+export type SubtitleBackdrop = 'film' | 'glass' | 'solid' | 'none';
+
+export const SUBTITLE_BACKDROPS: readonly SubtitleBackdrop[] = ['film', 'glass', 'solid', 'none'];
+
+export const SUBTITLE_BACKDROP_LABELS: Record<SubtitleBackdrop, string> = {
+  film: 'Плёнка',
+  glass: 'Стекло',
+  solid: 'Панель',
+  none: 'Без фона',
+};
+
+/** Управление: единый источник правды для подсказок в интерфейсе. */
+export interface ControlBinding {
+  readonly keys: readonly string[];
+  readonly label: string;
+  readonly description: string;
+}
+
+export const CONTROLS: readonly ControlBinding[] = [
+  { keys: ['W', 'A', 'S', 'D'], label: 'Движение', description: 'Ходьба по террасе' },
+  { keys: ['Мышь'], label: 'Обзор', description: 'Поворот камеры' },
+  { keys: ['Shift'], label: 'Быстрее', description: 'Ускоренный шаг' },
+  { keys: ['E'], label: 'Действие', description: 'Взять предмет, начать красить, отойти' },
+  { keys: ['W', 'S'], label: 'Валик', description: 'Вести валик по стене вверх-вниз' },
+  { keys: ['A', 'D'], label: 'Полоса', description: 'Шаг к соседней полосе стены' },
+  { keys: ['R'], label: 'Макнуть', description: 'Набрать краску из банки' },
+  { keys: ['ЛКМ'], label: 'Мышь', description: 'Альтернативно вести валик' },
+  { keys: ['Esc'], label: 'Пауза', description: 'Меню паузы' },
+  { keys: ['↑', '↓'], label: 'Меню', description: 'Выбор пункта' },
+  { keys: ['Enter'], label: 'Меню', description: 'Подтвердить' },
+] as const;
+
+/** Сенсорное управление (задача 11): тот же формат, что и у клавиш, — показывается
+ *  в панели «Управление» на телефоне и планшете. */
+export const TOUCH_CONTROLS: readonly ControlBinding[] = [
+  { keys: ['Стик'], label: 'Движение', description: 'Слева внизу; до упора — бег' },
+  { keys: ['Свайп'], label: 'Обзор', description: 'Провести пальцем по экрану' },
+  { keys: ['Щипок'], label: 'Приблизить', description: 'Два пальца — камера ближе/дальше' },
+  { keys: ['Ⓔ'], label: 'Действие', description: 'Взять предмет, войти в покраску, отойти' },
+  { keys: ['Держать'], label: 'ЛКМ', description: 'Красить стену, замах и бросок мяча' },
+  { keys: ['‹', '›'], label: 'Полоса', description: 'Соседняя полоса стены при покраске' },
+  { keys: ['МАКНУТЬ'], label: 'Краска', description: 'Набрать краску из банки' },
+  { keys: ['II'], label: 'Пауза', description: 'Меню паузы (правый верхний угол)' },
+] as const;
+
+/** Переходы интерфейса: всё плавное, ничего не «режется» (GOAL.md §6.3). */
+export const TIMING = {
+  fade: 0.42,
+  screen: 0.28,
+  hover: 0.2,
+  toast: 2.6,
+} as const;
+
+export const DEBUG = {
+  /** F4 — телеметрия кадра (FPS, draw calls, треугольники). */
+  statsKey: 'F4',
+  /** F3 — осмотр модели персонажа: скелет, вращение, тестовые позы (GOAL.md §7, задача 2). */
+  inspectorKey: 'F3',
+  /** F5 — каркас (wireframe) модели в режиме осмотра. */
+  wireframeKey: 'F5',
+  /** 1..4 — тестовые позы в режиме осмотра. */
+  poseKeys: ['Digit1', 'Digit2', 'Digit3', 'Digit4'] as const,
+} as const;
