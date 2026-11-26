@@ -10,3 +10,6 @@ dist/
 .vite/
 playwright-report/
 test-results/
+
+# готовый файл для скачивания (дубликат сборки, в git не нужен)
+download/
