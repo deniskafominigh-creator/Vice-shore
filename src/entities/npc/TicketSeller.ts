@@ -84,7 +84,7 @@ export class TicketSeller {
     badge.name = 'seller-badge';
     this.disposables.push(vest, stripe, badge);
 
-    const shell = new THREE.CylinderGeometry(0.215, 0.245, 0.44, 20, 1, true);
+    const shell = new THREE.CylinderGeometry(0.23, 0.26, 0.44, 20, 1, true);
     shell.scale(1, 1, 0.68);
     const body = new THREE.Mesh(shell, vest);
     body.name = 'seller-vest-body';
@@ -94,7 +94,7 @@ export class TicketSeller {
     this.disposables.push(shell);
 
     for (const y of [1.1, 1.33]) {
-      const ring = new THREE.CylinderGeometry(0.252, 0.252, 0.045, 20, 1, true);
+      const ring = new THREE.CylinderGeometry(0.268, 0.268, 0.045, 20, 1, true);
       ring.scale(1, 1, 0.68);
       const band = new THREE.Mesh(ring, stripe);
       band.name = `seller-vest-stripe-${y}`;

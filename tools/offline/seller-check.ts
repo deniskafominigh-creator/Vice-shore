@@ -1,6 +1,9 @@
 /** Проверка кассира (задача 18): реплики, ответы, расписание и место у кассы.
  *  Логика TicketOffice — чистые правила, поэтому проверяется без браузера. */
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import * as THREE from 'three';
+import { mp3Duration } from './mp3';
 import { STADIUM } from '../../src/core/Config';
 import { CollisionWorld } from '../../src/world/Colliders';
 import { buildStadium } from '../../src/world/island/Stadium';
@@ -130,6 +133,31 @@ if (blocked) fail('к кассиру не подойти: между покуп�
 else console.log('подход к кассе свободен');
 
 console.log(`кассир: (${SELLER_SPOT.x.toFixed(2)}, ${SELLER_SPOT.z.toFixed(2)}), стена кассы на ${boothZ.toFixed(2)}`);
+
+// ——— 6. озвучка кассира ———
+const NPC_DIR = join(process.cwd(), 'src/assets/npc');
+let totalSeconds = 0;
+for (const line of SELLER_LINES) {
+  const path = join(NPC_DIR, line.file);
+  if (!existsSync(path)) {
+    fail(`«${line.id}»: нет файла ${line.file}`);
+    continue;
+  }
+  const seconds = mp3Duration(readFileSync(path));
+  if (seconds === null) {
+    fail(`«${line.id}»: ${line.file} не читается как mp3`);
+    continue;
+  }
+  totalSeconds += seconds;
+  if (seconds < 0.6) fail(`«${line.id}»: слишком коротко — ${seconds.toFixed(2)} с`);
+  if (seconds > 9) fail(`«${line.id}»: слишком долго — ${seconds.toFixed(2)} с`);
+}
+const used = new Set(SELLER_LINES.map((line) => line.file));
+const orphans = existsSync(NPC_DIR)
+  ? readdirSync(NPC_DIR).filter((file) => file.endsWith('.mp3') && !used.has(file))
+  : [];
+if (orphans.length > 0) fail(`лишние mp3 без реплики: ${orphans.join(', ')}`);
+console.log(`озвучка кассира: ${SELLER_LINES.length} файлов, ${totalSeconds.toFixed(1)} с`);
 console.log(`стадион собрался: коллизий ${collisions.count}, чаша ${Math.round(stadium.footprint.maxX - stadium.footprint.minX)}×${Math.round(stadium.footprint.maxZ - stadium.footprint.minZ)} м`);
 console.log(problems === 0 ? 'Кассир: всё на месте' : `Кассир: проблем ${problems}`);
 export const failed = problems > 0;
