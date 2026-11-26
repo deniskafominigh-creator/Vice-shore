@@ -60,6 +60,8 @@ export class StreetNpc {
   ) {
     this.hero = new RiggedHero(cloneGltfForNpc(gltf));
     this.hero.recolourOutfit(palette, 512);
+    // 82 тысячи треугольников на жителя — в карту теней их второй раз не надо
+    this.hero.setCastShadow(false);
     this.name = name;
     this.group.name = `street-npc-${name}`;
     this.group.add(this.hero.group);
@@ -146,6 +148,9 @@ export class StreetNpc {
       const wantYaw = Math.atan2(-toPlayerX, -toPlayerZ);
       this.lookYaw = this.turnToward(this.lookYaw, wantYaw, dt, 4);
       if (this.waveTimer <= 0) this.yaw = this.turnToward(this.yaw, wantYaw, dt, 2.4);
+    } else if (!near) {
+      // Герой ушёл — взгляд возвращается к дороге, а не «прилипает» навсегда
+      this.lookYaw = this.turnToward(this.lookYaw, 0, dt, 1.6);
     }
 
     this.group.position.y = this.groundHeightAt(this.group.position.x, this.group.position.z);
@@ -186,7 +191,7 @@ export class StreetNpc {
   }
 
   dispose(): void {
-    this.hero.dispose();
+    this.hero.dispose(false);
     this.group.removeFromParent();
   }
 }

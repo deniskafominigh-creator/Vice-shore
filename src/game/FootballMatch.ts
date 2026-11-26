@@ -202,6 +202,10 @@ export class FootballMatch {
   clear(): void {
     for (const view of this.views.values()) view.dispose();
     this.views.clear();
+    // Мяч возвращается к обычной жизни: иначе после финального свистка он
+    // так и лежал бы в сетке, а герой не смог бы его ударить.
+    this.options.football.setAutoCentre(true);
+    this.options.football.reset(true);
     this.options.ui.hideMatchHud();
     this.running = false;
     this.clock = 0;

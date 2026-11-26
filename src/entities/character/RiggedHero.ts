@@ -95,6 +95,8 @@ export class RiggedHero implements HeroCharacter {
   private readonly geometries: THREE.BufferGeometry[] = [];
   private readonly materials: THREE.Material[] = [];
   private readonly textures: THREE.Texture[] = [];
+  /** Карты, созданные перекраской: принадлежат этому персонажу. */
+  private readonly ownTextures: THREE.Texture[] = [];
   private skinned: THREE.SkinnedMesh | null = null;
   private readonly curlAxis = new THREE.Vector3(1, 0, 0);
   private readonly curlQuat = new THREE.Quaternion();
@@ -291,6 +293,13 @@ export class RiggedHero implements HeroCharacter {
     return this.pose;
   }
 
+  /** Тени для клонов: уличным жителям хватает контактной тени окружения. */
+  setCastShadow(enabled: boolean): void {
+    this.group.traverse((object) => {
+      if (object instanceof THREE.Mesh) object.castShadow = enabled;
+    });
+  }
+
   setDebug(visible: boolean, wireframe = false): void {
     this.skeletonHelper.visible = visible;
     for (const material of this.materials) {
@@ -361,19 +370,46 @@ export class RiggedHero implements HeroCharacter {
   /** Перекрасить одежду (задача 19): палитра по классам из `Outfit.ts`.
    *  Возвращает число перекрашенных материалов — 0 значит «нечего красить». */
   recolourOutfit(palette: readonly string[], maxSize = 2048): number {
-    return applyOutfit(this.materials, palette, maxSize);
+    const created: THREE.Texture[] = [];
+    const before = new Set<THREE.Texture>();
+    for (const material of this.materials) {
+      const map = (material as THREE.MeshStandardMaterial).map;
+      if (map) before.add(map);
+    }
+    const count = applyOutfit(this.materials, palette, maxSize);
+    // Новые карты — наши: при `dispose(false)` их надо освободить, а исходные
+    // (общие с базовой моделью) трогать нельзя.
+    for (const material of this.materials) {
+      const map = (material as THREE.MeshStandardMaterial).map;
+      if (map && !before.has(map) && !this.ownTextures.includes(map)) {
+        this.ownTextures.push(map);
+        created.push(map);
+      }
+    }
+    void created;
+    return count;
   }
 
-  dispose(): void {
+  /**
+   * Освободить ресурсы.
+   *  `sharedResources = false` — для клонов NPC: геометрию и часть карт они
+   *  делят с базовой моделью героя, и их освобождение «убило» бы героя.
+   */
+  dispose(sharedResources = true): void {
     this.mixer.stopAllAction();
     for (const action of this.actions.values()) action.stop();
     this.actions.clear();
     this.skeletonHelper.geometry.dispose();
     (this.skeletonHelper.material as THREE.Material).dispose();
     this.skeletonHelper.removeFromParent();
-    for (const geometry of this.geometries) geometry.dispose();
+    if (sharedResources) for (const geometry of this.geometries) geometry.dispose();
     for (const material of this.materials) material.dispose();
-    for (const texture of this.textures) texture.dispose();
+    if (sharedResources) {
+      for (const texture of this.textures) texture.dispose();
+    } else {
+      for (const texture of this.ownTextures) texture.dispose();
+    }
+    this.ownTextures.length = 0;
     this.rig.dispose();
     this.group.removeFromParent();
   }

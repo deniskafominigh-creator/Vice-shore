@@ -97,6 +97,11 @@ export class StreetLife {
       this.ui.hideSubtitle();
     }
     for (const npc of this.npcs) {
+      // Дальний план: 82 тысячи треугольников на человека за 50 м не рисуем
+      const distance = npc.position.distanceTo(playerPosition);
+      const visible = distance < 50;
+      if (npc.group.visible !== visible) npc.group.visible = visible;
+      if (!visible) continue;
       const greeted = npc.update(dt, playerPosition);
       if (greeted) this.greet(npc);
     }

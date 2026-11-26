@@ -36,6 +36,7 @@ export class PitchPlayer {
   private readonly spine: BoneRest | null;
   private readonly head: BoneRest | null;
 
+  private readonly groundY: number;
   private phase = 0;
   private celebration = 0;
   private kick = 0;
@@ -51,6 +52,7 @@ export class PitchPlayer {
     this.group.name = 'pitch-player';
     this.group.add(this.hero.group);
     this.group.position.y = groundY;
+    this.groundY = groundY;
 
     const grab = (name: string): BoneRest | null => {
       const bone = this.hero.rig.bones.get(name);
@@ -87,10 +89,8 @@ export class PitchPlayer {
     this.kick = damp(this.kick, wantKick, 18, dt);
 
     // Подскок на праздновании — короткими толчками, как прыгают от радости
-    const beat = Math.sin(this.hero.group.userData.celebrateTime ?? 0);
-    void beat;
     this.hop = this.celebration > 0.35 ? Math.abs(Math.sin(this.celebration * 9)) * 0.16 : 0;
-    this.group.position.y = this.hero.group.position.y + this.hop;
+    this.group.position.y = this.groundY + this.hop;
 
     // Разгон: корпус вперёд, чтобы бег читался силуэтом
     this.lean = damp(this.lean, clamp(player.speed01 * 0.9, 0, 1), 8, dt);
@@ -125,7 +125,8 @@ export class PitchPlayer {
   }
 
   dispose(): void {
-    this.hero.dispose();
+    // Клоны делят геометрию и карты с базовой моделью — освобождаем только своё
+    this.hero.dispose(false);
     this.group.removeFromParent();
   }
 }
