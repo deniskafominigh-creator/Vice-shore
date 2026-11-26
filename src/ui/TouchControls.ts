@@ -37,6 +37,7 @@ export class TouchControls {
   private readonly holdLabel: HTMLElement;
   private readonly actionButton: HTMLElement;
   private readonly actionLabel: HTMLElement;
+  private readonly jumpButton: HTMLElement;
   private readonly extras: HTMLElement;
   private readonly rotate: HTMLElement;
 
@@ -75,6 +76,18 @@ export class TouchControls {
       this.actionLabel,
     );
 
+    // Прыжок — отдельная круглая кнопка слева от «Держать»: на телефоне левый
+    // большой палец занят стиком, правый — обзором и действиями.
+    this.jumpButton = el(
+      'button',
+      {
+        className: 'touch-btn touch-btn--jump',
+        attrs: { type: 'button', 'aria-label': 'Прыжок' },
+      },
+      el('span', { className: 'touch-btn__icon', text: '↑' }),
+      el('span', { className: 'touch-btn__label', text: 'ПРЫЖОК' }),
+    );
+
     this.extras = el(
       'div',
       { className: 'touch-extras' },
@@ -108,6 +121,7 @@ export class TouchControls {
       this.extras,
       this.holdButton,
       this.actionButton,
+      this.jumpButton,
       pause,
       this.rotate,
     );
@@ -116,6 +130,7 @@ export class TouchControls {
     this.bindLook();
     this.bindHold();
     this.bindAction();
+    this.bindJump();
     this.setMode('world');
   }
 
@@ -166,6 +181,7 @@ export class TouchControls {
     this.stick.classList.remove('is-active');
     this.holdButton.classList.remove('is-pressed');
     this.actionButton.classList.remove('is-pressed');
+    this.jumpButton.classList.remove('is-pressed');
     this.lookPointers.clear();
     this.pinchDistance = 0;
     this.releaseExtras();
@@ -303,6 +319,20 @@ export class TouchControls {
     this.holdButton.addEventListener('pointerup', release);
     this.holdButton.addEventListener('pointercancel', release);
     this.holdButton.addEventListener('lostpointercapture', release);
+  }
+
+  private bindJump(): void {
+    this.jumpButton.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.jumpButton.classList.add('is-pressed');
+      // Тот же код, что и пробел: логика прыжка одна для всех устройств.
+      this.options.input.tapVirtualKey('Space');
+    });
+    const release = (): void => this.jumpButton.classList.remove('is-pressed');
+    this.jumpButton.addEventListener('pointerup', release);
+    this.jumpButton.addEventListener('pointercancel', release);
+    this.jumpButton.addEventListener('lostpointercapture', release);
   }
 
   private bindAction(): void {

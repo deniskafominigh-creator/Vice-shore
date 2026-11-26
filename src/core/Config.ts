@@ -82,10 +82,10 @@ export const ISLAND = {
 export interface HouseSpec {
   readonly id: string;
   readonly name: string;
+  /** Положение вдоль улицы. Высота и поворот считаются в `layoutHouses()`. */
   readonly x: number;
-  readonly z: number;
-  /** Поворот вокруг Y в радианах: 0 — фасад на +Z. */
-  readonly yaw: number;
+  /** Сторона улицы: дом стоит вдоль неё фасадом к дороге. */
+  readonly side: 'north' | 'south';
   readonly width: number;
   readonly depth: number;
   readonly floors: 0 | 1;
@@ -97,19 +97,26 @@ export interface HouseSpec {
   readonly pergola: boolean;
 }
 
+/** Дом после расстановки: координаты и поворот уже посчитаны. */
+export interface PlacedHouse extends HouseSpec {
+  readonly z: number;
+  /** Поворот вокруг Y: 0 — фасад на +Z (северный ряд), π — на −Z (южный). */
+  readonly yaw: number;
+}
+
 export const TOWN = {
   /** Улица вдоль острова: от западной оконечности к восточной. */
   streetZ: 26,
   streetWidth: 5.4,
-  /** Отступ домов от улицы. */
-  frontGap: 7,
+  /** Отступ фасада от кромки улицы, м. Вперёд выносятся терраса (3,6 м) и
+   *  бассейн (ещё 6 м), поэтому девять: при семи чаша бассейна вставала на дорогу. */
+  frontGap: 9,
   houses: [
     {
       id: 'house-se',
       name: 'Дом у юго-восточной бухты',
-      x: 40,
-      z: 40,
-      yaw: Math.PI,
+      x: 0,
+      side: 'south',
       width: 14,
       depth: 10,
       floors: 1,
@@ -121,9 +128,8 @@ export const TOWN = {
     {
       id: 'house-e',
       name: 'Стеклянный дом на востоке',
-      x: 58,
-      z: 14,
-      yaw: Math.PI * 0.78,
+      x: 30,
+      side: 'south',
       width: 12,
       depth: 11,
       floors: 1,
@@ -135,9 +141,8 @@ export const TOWN = {
     {
       id: 'house-n',
       name: 'Дом с перголой у северной аллеи',
-      x: 14,
-      z: 44,
-      yaw: 0,
+      x: 30,
+      side: 'north',
       width: 16,
       depth: 9,
       floors: 0,
@@ -149,9 +154,8 @@ export const TOWN = {
     {
       id: 'house-w',
       name: 'Западная вилла над обрывом',
-      x: -50,
-      z: 26,
-      yaw: Math.PI * 0.34,
+      x: -44,
+      side: 'north',
       width: 13,
       depth: 10,
       floors: 1,
@@ -163,9 +167,8 @@ export const TOWN = {
     {
       id: 'house-sw',
       name: 'Терракотовый дом в саду',
-      x: -30,
-      z: -38,
-      yaw: Math.PI * 0.06,
+      x: -28,
+      side: 'south',
       width: 15,
       depth: 11,
       floors: 1,
@@ -176,6 +179,27 @@ export const TOWN = {
     },
   ] satisfies readonly HouseSpec[],
 } as const;
+
+/**
+ * Расстановка домов посёлка.
+ *
+ * Правило одно: дома стоят вдоль улицы двумя рядами, фасадом к дороге, с равным
+ * отступом `frontGap`. Координаты в `TOWN.houses` больше не задаются руками —
+ * раньше из-за этого западный дом стоял поперёк дороги (z = streetZ, поворот 61°),
+ * стеклянный дом был повёрнут на 140°, а дом с перголой смотрел фасадом в поле.
+ */
+export function layoutHouses(): readonly PlacedHouse[] {
+  const northEdge = TOWN.streetZ - TOWN.streetWidth / 2;
+  const southEdge = TOWN.streetZ + TOWN.streetWidth / 2;
+  return TOWN.houses.map((spec) => {
+    const z = spec.side === 'north'
+      ? northEdge - TOWN.frontGap - spec.depth / 2
+      : southEdge + TOWN.frontGap + spec.depth / 2;
+    // Фасад — это +Z дома: северный ряд смотрит на юг (к дороге), южный — на север.
+    const yaw = spec.side === 'north' ? 0 : Math.PI;
+    return { ...spec, z, yaw };
+  });
+}
 
 /** Участок с виллой: забор, калитка, дом, терраса. */
 export const PLOT = {
@@ -257,6 +281,7 @@ export const CONTROLS: readonly ControlBinding[] = [
   { keys: ['W', 'A', 'S', 'D'], label: 'Движение', description: 'Ходьба по террасе' },
   { keys: ['Мышь'], label: 'Обзор', description: 'Поворот камеры' },
   { keys: ['Shift'], label: 'Быстрее', description: 'Ускоренный шаг' },
+  { keys: ['Space'], label: 'Прыжок', description: 'Подпрыгнуть на месте или на бегу' },
   { keys: ['E'], label: 'Действие', description: 'Взять предмет, начать красить, отойти' },
   { keys: ['W', 'S'], label: 'Валик', description: 'Вести валик по стене вверх-вниз' },
   { keys: ['A', 'D'], label: 'Полоса', description: 'Шаг к соседней полосе стены' },
@@ -271,6 +296,7 @@ export const CONTROLS: readonly ControlBinding[] = [
  *  в панели «Управление» на телефоне и планшете. */
 export const TOUCH_CONTROLS: readonly ControlBinding[] = [
   { keys: ['Стик'], label: 'Движение', description: 'Слева внизу; до упора — бег' },
+  { keys: ['ПРЫЖОК'], label: 'Прыжок', description: 'Круглая кнопка слева от «Держать»' },
   { keys: ['Свайп'], label: 'Обзор', description: 'Провести пальцем по экрану' },
   { keys: ['Щипок'], label: 'Приблизить', description: 'Два пальца — камера ближе/дальше' },
   { keys: ['Ⓔ'], label: 'Действие', description: 'Взять предмет, войти в покраску, отойти' },

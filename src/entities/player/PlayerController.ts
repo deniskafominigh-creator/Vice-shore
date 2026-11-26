@@ -24,6 +24,10 @@ export class PlayerController {
   phase = 0;
   /** Радиус тела для столкновений. */
   readonly radius = 0.34;
+  /** Герой в полёте: прыжок или падение с уступа. */
+  get isAirborne(): boolean {
+    return this.airborne;
+  }
 
   private static readonly WALK_SPEED = 1.85;
   private static readonly RUN_SPEED = 4.5;
@@ -32,10 +36,19 @@ export class PlayerController {
   private static readonly TURN_RATE = 11;
   /** Длина шага, м: фаза шага привязана к пути, иначе ноги «скользят». */
   private static readonly STRIDE = 1.45;
+  /** Прыжок: скорость отрыва и сила тяжести. 5,2 м/с при 20 м/с² — подъём
+   *  около 0,68 м и полёт около 0,52 с: перескочить бортик клумбы, но не стену. */
+  private static readonly JUMP_SPEED = 5.2;
+  private static readonly GRAVITY = 20;
+  /** Перепад выше этого уже не «ступенька»: герой падает, а не съезжает сглаживанием. */
+  private static readonly LEDGE = 0.45;
 
   private readonly velocity = new THREE.Vector2();
   private targetYaw = 0;
   private moving = false;
+  /** Вертикальная скорость, м/с (положительная — вверх). */
+  private verticalVelocity = 0;
+  private airborne = false;
 
   /** Поставить героя в точку и на землю. */
   spawn(x: number, z: number, island: Island, yaw = 0): void {
@@ -46,6 +59,17 @@ export class PlayerController {
     this.speed = 0;
     this.speed01 = 0;
     this.phase = 0;
+    this.verticalVelocity = 0;
+    this.airborne = false;
+  }
+
+  /** Прыжок с земли. Возвращает false, если герой уже в воздухе —
+   *  двойного прыжка нет, но и «залипания» кнопки тоже. */
+  jump(): boolean {
+    if (this.airborne) return false;
+    this.airborne = true;
+    this.verticalVelocity = PlayerController.JUMP_SPEED;
+    return true;
   }
 
   /** Состояние для сохранения. */
@@ -100,9 +124,24 @@ export class PlayerController {
 
     this.speed = Math.hypot(actualDX, actualDZ) / dt;
 
-    // Высота земли: ступенька на террасу и порог дома сглаживаются
+    // Высота земли: ступенька на террасу и порог дома сглаживаются,
+    // но прыжок считается честной баллистикой.
     const groundY = island.groundHeightAt(this.position.x, this.position.z);
-    this.position.y = damp(this.position.y, groundY, 14, dt);
+    if (this.airborne) {
+      this.verticalVelocity -= PlayerController.GRAVITY * dt;
+      this.position.y += this.verticalVelocity * dt;
+      if (this.verticalVelocity <= 0 && this.position.y <= groundY) {
+        this.position.y = groundY;
+        this.verticalVelocity = 0;
+        this.airborne = false;
+      }
+    } else if (groundY < this.position.y - PlayerController.LEDGE) {
+      // Сошли с уступа — падаем. Сглаживание здесь дало бы «сползание по воздуху».
+      this.airborne = true;
+      this.verticalVelocity = 0;
+    } else {
+      this.position.y = damp(this.position.y, groundY, 14, dt);
+    }
 
     // Поворот героя к направлению движения (плавно, по кратчайшей дуге)
     if (this.moving) this.targetYaw = Math.atan2(-wishX, -wishZ);

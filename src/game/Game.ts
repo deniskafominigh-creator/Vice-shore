@@ -30,8 +30,10 @@ const DEFAULT_BOUNDS = { minX: -13, maxX: 13, minZ: -10, maxZ: 10 } as const;
 
 /** Подсказка под схему управления (задача 11). */
 const HINTS = {
-  keyboard: 'WASD — идти · Shift — бег · мышь — обзор · колесо — приблизить · Esc — пауза',
-  touch: 'Стик слева — идти (до упора — бег) · свайп — обзор · «Держать» — красить и бросать · Ⓔ — действие · II — пауза',
+  keyboard:
+    'WASD — идти · Shift — бег · Space — прыжок · мышь — обзор · колесо — приблизить · Esc — пауза',
+  touch:
+    'Стик слева — идти (до упора — бег) · «ПРЫЖОК» — прыгать · свайп — обзор · «Держать» — красить и бросать · Ⓔ — действие · II — пауза',
 } as const;
 
 /** Точка сборки всего: рендерер, мир, интерфейс, звук, состояния.
@@ -313,6 +315,10 @@ export class Game {
       strafe: this.input.axis('KeyA', 'KeyD'),
       run: this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight'),
     };
+    // Прыжок — по нажатию, а не по удержанию: Space на клавиатуре, кнопка
+    // «ПРЫЖОК» на сенсорном экране (она шлёт тот же код 'Space').
+    if (this.input.wasPressed('Space')) this.player.jump();
+
     this.player.update(dt, intent, this.thirdPersonCamera.yaw, island);
 
     character.group.position.copy(this.player.position);

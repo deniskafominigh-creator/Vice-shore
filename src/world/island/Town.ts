@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ISLAND, TERRACE, TOWN, type HouseSpec } from '../../core/Config';
+import { ISLAND, TERRACE, TOWN, layoutHouses, type HouseSpec, type PlacedHouse } from '../../core/Config';
 import type { IslandMaterials } from './IslandTextures';
 import type { CollisionWorld } from '../Colliders';
 
@@ -137,7 +137,7 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
   //  Дом
   // ————————————————————————————————————————————————————————————————
 
-  const buildHouse = (spec: HouseSpec, index: number): void => {
+  const buildHouse = (spec: PlacedHouse, index: number): void => {
     const house = new THREE.Group();
     house.name = spec.id;
     // Дети группы считают высоту от уровня площадки в абсолютных числах (h),
@@ -228,10 +228,14 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     const MULLION = 0.048;
     const SILL = 0.13;
     const SHUTTER = 0.03;
-    const windowRow = (y: number, count: number): void => {
+    /** Окна в ряд по фасаду. `skipCenter` — не ставить окна в полосу шириной
+     *  2×skipCenter у центра: на втором этаже там балкон, и стойки ограждения
+     *  проходили сквозь ставни. */
+    const windowRow = (y: number, count: number, skipCenter = 0, withShutters = true): void => {
       const spacing = spec.width / (count + 1);
       for (let i = 0; i < count; i += 1) {
         const x = -halfW + spacing * (i + 1);
+        if (skipCenter > 0 && Math.abs(x) < skipCenter) continue;
         const z = frontOut;
         add(house, box(materials.windowGlass, [1.15, 1.35, 0.06], [x, y, z + PANE]));
         add(house, box(materials.trim, [1.27, 0.07, 0.1], [x, y + 0.71, z + FRAME]));
@@ -242,9 +246,12 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
         add(house, box(materials.trim, [0.05, 1.35, 0.07], [x, y, z + MULLION]));
         // Подоконник
         add(house, box(materials.stone, [1.45, 0.08, 0.26], [x, y - 0.78, z + SILL]));
-        // Ставни-жалюзи
-        add(house, box(materials.wood, [0.34, 1.44, 0.06], [x - 0.83, y, z + SHUTTER]));
-        add(house, box(materials.wood, [0.34, 1.44, 0.06], [x + 0.83, y, z + SHUTTER]));
+        // Ставни-жалюзи. На втором этаже их нет: там стойки ограждения балкона
+        // проходят вплотную к фасаду и цепляли створки.
+        if (withShutters) {
+          add(house, box(materials.wood, [0.34, 1.44, 0.06], [x - 0.83, y, z + SHUTTER]));
+          add(house, box(materials.wood, [0.34, 1.44, 0.06], [x + 0.83, y, z + SHUTTER]));
+        }
       }
     };
 
@@ -286,9 +293,9 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     if (twoFloors) {
       const beltY = wallFoot + WALL_HEIGHT;
       add(house, box(materials.trim, [spec.width + 0.16, 0.16, spec.depth + 0.16], [0, beltY, 0]));
-      windowRow(beltY + 1.5, Math.max(2, Math.round(spec.width / 5)));
-      // Балкон по центру фасада
       const balconyWidth = Math.min(4.6, spec.width * 0.42);
+      windowRow(beltY + 1.5, Math.max(2, Math.round(spec.width / 5)), balconyWidth / 2 + 0.5, false);
+      // Балкон по центру фасада
       add(
         house,
         box(materials.stone, [balconyWidth, 0.14, 1.5], [0, beltY + 0.08, halfD + 0.7]),
@@ -483,40 +490,41 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     add(house, box(materials.brass, [0.22, 0.1, 0.02], [0, wallFoot + 2.62, halfD + 0.02]));
 
     group.add(house);
-    // Дом закрыт для входа: AABB по повёрнутому контуру. Осевая коробка всегда
-    // содержит повёрнутый прямоугольник, поэтому лишних «дыр» в стенах не остаётся.
-    const cos = Math.cos(spec.yaw);
-    const sin = Math.sin(spec.yaw);
-    const toWorld = (lx: number, lz: number): [number, number] => [
-      spec.x + lx * cos + lz * sin,
-      spec.z - lx * sin + lz * cos,
-    ];
-    const [ax, az] = toWorld(-halfW, -halfD);
-    const [bx, bz] = toWorld(halfW, halfD);
+
+    // ——— коллизия: ровно по видимому цоколю, без «запаса на глаз» ———
+    // Раньше вокруг дома лежал осевой AABB повёрнутого контура да ещё с надбавкой
+    // 0,4 м. У домов с поворотом он вылезал на 3–4 м за стены: игрок упирался
+    // в воздух на газоне, у клумб и на тротуаре, а войти в проём было нельзя.
+    // Теперь дома стоят строго по осям (yaw 0 или π), а коробка совпадает с
+    // цоколем — той частью дома, которая стоит на земле и видна.
+    const plinthHalfW = halfW + 0.35;
+    const plinthHalfD = halfD + 0.35;
     collisions.addBox(
-      Math.min(ax, bx) - 0.4,
-      Math.max(ax, bx) + 0.4,
-      Math.min(az, bz) - 0.4,
-      Math.max(az, bz) + 0.4,
-      GROUND + 2,
+      spec.x - plinthHalfW,
+      spec.x + plinthHalfW,
+      spec.z - plinthHalfD,
+      spec.z + plinthHalfD,
+      GROUND + bodyHeight + 0.6,
     );
     houses.push({
       id: spec.id,
       name: spec.name,
-      minX: spec.x - halfW - 0.4,
-      maxX: spec.x + halfW + 0.4,
-      minZ: spec.z - halfD - 0.4,
-      maxZ: spec.z + halfD + 0.4,
+      minX: spec.x - plinthHalfW,
+      maxX: spec.x + plinthHalfW,
+      minZ: spec.z - plinthHalfD,
+      maxZ: spec.z + plinthHalfD,
     });
+    // Трава не сеется вокруг дома с учётом террасы и бассейна впереди.
     occupied.push({
       minX: spec.x - halfW - 3.4,
       maxX: spec.x + halfW + 3.4,
-      minZ: spec.z - halfD - 3.4,
-      maxZ: spec.z + halfD + 5.5,
+      minZ: spec.z - halfD - 7.6,
+      maxZ: spec.z + halfD + 7.6,
     });
   };
 
-  TOWN.houses.forEach(buildHouse);
+  const placedHouses = layoutHouses();
+  placedHouses.forEach(buildHouse);
 
   // ————————————————————————————————————————————————————————————————
   //  Улица: дорога, бордюры, фонари, скамейки, разметка, клумбы
@@ -539,13 +547,13 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     const x = -streetLength / 2 + 3 + i * 6;
     add(street, box(materials.white, [2.4, 0.02, 0.16], [x, GROUND + 0.06, TOWN.streetZ]));
   }
-  // Фонари каждые 14 м по обе стороны
+  // Фонари каждые 14 м — по северной стороне, где нет бассейнов и дорожек к домам:
+  // на южной стороне фонарь вставал то в чашу бассейна, то посреди дорожки.
   const lampStep = 14;
   const lampCount = Math.floor(streetLength / lampStep);
   for (let i = 0; i < lampCount; i += 1) {
     const x = -streetLength / 2 + 7 + i * lampStep;
-    const side = i % 2 === 0 ? 1 : -1;
-    const z = TOWN.streetZ + side * (TOWN.streetWidth / 2 + 0.9);
+    const z = TOWN.streetZ - (TOWN.streetWidth / 2 + 0.9);
     add(street, cylinder(materials.metal, 0.07, 0.1, 3.6, [x, GROUND + 1.8, z], 10));
     add(street, box(materials.metal, [0.5, 0.08, 0.08], [x + 0.2, GROUND + 3.55, z]));
     add(street, box(lampGlow, [0.3, 0.12, 0.22], [x + 0.45, GROUND + 3.45, z]));
@@ -565,12 +573,14 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     add(street, cylinder(materials.metal, 0.16, 0.13, 0.5, [x + 1.3, GROUND + 0.25, z + 0.2], 10));
     collisions.addBox(x - 0.95, x + 0.95, z - 0.35, z + 0.35, GROUND + 0.6);
   }
-  // Клумбы вдоль улицы
-  const bedCount = 9;
-  const bedStep = (streetLength - 30) / (bedCount - 1);
-  for (let i = 0; i < bedCount; i += 1) {
-    const x = -streetLength / 2 + 15 + i * bedStep;
-    const z = TOWN.streetZ + TOWN.streetWidth / 2 + 2.2;
+  // Клумбы — в промежутках между домами и бассейнами южного ряда.
+  // Раньше они шли ровным шагом: клумба вставала вплотную к дорожке от двери,
+  // а одна — прямо напротив калитки старого участка.
+  // Коллайдера у клумбы нет: это низкий бортик 32 см, на него можно зайти.
+  const bedZ = TOWN.streetZ + TOWN.streetWidth / 2 + 1.7;
+  const bedXs = [-45, -14, 15.7, 44];
+  for (const x of bedXs) {
+    const z = bedZ;
     add(street, box(materials.stone, [3.4, 0.32, 1.5], [x, GROUND + 0.16, z]));
     add(street, box(materials.terracotta, [3.1, 0.1, 1.2], [x, GROUND + 0.34, z]));
     for (let k = 0; k < 5; k += 1) {
@@ -618,11 +628,18 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     });
   };
 
-  for (const spec of TOWN.houses) {
-    // От центра фасада дома к улице
-    const frontZ = spec.z + Math.cos(spec.yaw) * (spec.depth / 2 + 4.5);
-    const frontX = spec.x + Math.sin(spec.yaw) * (spec.depth / 2 + 4.5);
-    pathTo(frontX, frontZ, frontX * 0.6 + 0, TOWN.streetZ - TOWN.streetWidth / 2 - 0.45, 1.9);
+  const streetNorthEdge = TOWN.streetZ - TOWN.streetWidth / 2;
+  const streetSouthEdge = TOWN.streetZ + TOWN.streetWidth / 2;
+  for (const spec of placedHouses) {
+    // Дорожка идёт от фасада прямо к ближней кромке улицы: раньше все дорожки
+    // сходились к центру (x * 0,6) и получалась «звезда» через газон.
+    // У домов с бассейном дорожка начинается за чашей, а не внутри неё.
+    const edge = spec.side === 'north' ? streetNorthEdge - 0.45 : streetSouthEdge + 0.45;
+    // У дома с бассейном дорожка идёт вдоль боковой стены, за чашей: прямо от
+    // двери она протыкала бассейн и лежаки.
+    const sideOffset = spec.pool ? (spec.x >= 0 ? -1 : 1) * (spec.width / 2 + 1.2) : 0;
+    const startZ = spec.z + Math.cos(spec.yaw) * (spec.depth / 2 + (spec.pool ? 0.2 : 4.6));
+    pathTo(spec.x + sideOffset, startZ, spec.x + sideOffset, edge, 1.9);
   }
   // От калитки старого участка к улице — главная аллея
   pathTo(0, 14.5, 0, TOWN.streetZ - TOWN.streetWidth / 2 - 0.45, 2.6);
@@ -687,7 +704,7 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     collisions.addCircle(x, z, 0.42, GROUND + 5);
   }
   // Кашпо и поленницы у домов
-  for (const spec of TOWN.houses) {
+  for (const spec of placedHouses) {
     for (let i = 0; i < 3; i += 1) {
       const angle = spec.yaw + (i - 1) * 0.6;
       const x = spec.x + Math.sin(angle) * (spec.width / 2 + 3.6);

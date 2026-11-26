@@ -1376,6 +1376,30 @@ body {
   z-index: 3;
 }
 
+/* Прыжок — над «Действием», вне зоны стика и кнопки «Держать».
+   В режиме покраски кнопка убирается: там прыгать некуда, а место занимают
+   дополнительные кнопки полос. */
+.touch-btn--jump {
+  right: calc(var(--pad-r) + 112px);
+  bottom: calc(var(--pad-b) + 96px);
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  background: rgba(6, 17, 24, 0.62);
+  border: 1px solid rgba(242, 246, 248, 0.26);
+  color: var(--text);
+  backdrop-filter: blur(6px);
+  z-index: 3;
+}
+
+.touch-btn--jump .touch-btn__icon {
+  font-size: 20px;
+}
+
+.touch-ui.is-painting .touch-btn--jump {
+  display: none;
+}
+
 .touch-extras {
   position: absolute;
   right: var(--pad-r);

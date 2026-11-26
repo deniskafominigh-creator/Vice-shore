@@ -93,9 +93,10 @@ for (const [name, node] of modules) {
   const zfight = report.findings.filter((f) => f.kind === 'z-fight');
   total += zfight.length;
   console.log(`${name.padEnd(14)} z-fight: ${String(zfight.length).padStart(3)}`);
-  for (const f of zfight.slice(0, 4)) {
+  for (const f of zfight.slice(0, 6)) {
     console.log(`   ${f.detail} | ${f.objects[0]} ⟷ ${f.objects[1]}`);
   }
 }
 console.log(`ИТОГО z-fight по сцене: ${total}`);
 export const zfightTotal = total;
+export const failed = total > 0;
