@@ -218,6 +218,12 @@ export class DialogueSystem {
     this.decoding = false;
   }
 
+  /** Герой молчит, пока говорит кассир: две дорожки не спорят (задача 18). */
+  pauseIdle(): void {
+    this.lastVoiceAt = this.clock;
+    this.nextIdleAt = RULES.idleDelay + Math.random() * RULES.idleJitter;
+  }
+
   update(_dt?: number): void {
     if (this.current && this.clock >= this.current.endsAt) this.finish();
 

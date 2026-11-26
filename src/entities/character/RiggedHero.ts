@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { clamp, damp } from '../../core/MathUtils';
 import modelUrl from '../../assets/characters/character_rigged.glb?url';
 import type { CharacterPose } from './Character';
@@ -425,18 +426,32 @@ export class RiggedHero implements HeroCharacter {
   }
 }
 
-/** Загрузка привезённой модели. null — если файла нет или он битый:
- *  игра в этом случае остаётся на процедурном герое. */
-export async function loadRiggedHero(): Promise<RiggedHero | null> {
+/** Загрузка привезённой модели как есть: нужна, чтобы сделать и героя, и NPC
+ *  из одного разбора (задача 18). null — файла нет или он битый. */
+export async function loadHeroGltf(): Promise<GLTF | null> {
   try {
     const gltf = await new GLTFLoader().loadAsync(modelUrl);
     if (gltf.animations.length === 0) {
       console.warn('[RiggedHero] в модели нет анимаций — остаёмся на процедурном герое');
       return null;
     }
-    return new RiggedHero(gltf);
+    return gltf;
   } catch (error) {
     console.warn('[RiggedHero] модель не загрузилась, герой процедурный:', error);
     return null;
   }
+}
+
+/** Копия модели для NPC: скелет клонируется целиком (`SkeletonUtils`), текстуры
+ *  и материалы общие — второй персонаж не удваивает память. */
+export function cloneGltfForNpc(gltf: GLTF): GLTF {
+  const scene = cloneSkeleton(gltf.scene) as unknown as THREE.Group;
+  return { ...gltf, scene } as GLTF;
+}
+
+/** Загрузка привезённой модели. null — если файла нет или он битый:
+ *  игра в этом случае остаётся на процедурном герое. */
+export async function loadRiggedHero(): Promise<RiggedHero | null> {
+  const gltf = await loadHeroGltf();
+  return gltf ? new RiggedHero(gltf) : null;
 }

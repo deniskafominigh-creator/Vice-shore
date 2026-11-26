@@ -18,7 +18,11 @@ import { World } from '../world/World';
 import { auditScene, type AuditReport } from '../world/SceneAudit';
 import { CHARACTER_POSES, Character, POSE_LABELS, type CharacterPose } from '../entities/character/Character';
 import type { HeroCharacter } from '../entities/character/HeroCharacter';
-import { loadRiggedHero } from '../entities/character/RiggedHero';
+import { cloneGltfForNpc, loadHeroGltf, RiggedHero } from '../entities/character/RiggedHero';
+import { TicketSeller } from '../entities/npc/TicketSeller';
+import { SellerVoice } from '../entities/npc/SellerVoice';
+import { lineById, SELLER_QUESTIONS, SELLER_SPEAKER, SELLER_SPOT, TicketOffice } from './TicketOffice';
+import type { TalkOption } from '../ui/TalkPanel';
 import { PlayerController, type MoveIntent } from '../entities/player/PlayerController';
 import { createStates } from './states';
 import { QuestSystem } from './QuestSystem';
@@ -64,6 +68,14 @@ export class Game {
   /** Билет куплен в кассе (необязательный шаг: пройти мимо можно). */
   private hasTicket = false;
   private boothPrompted = false;
+  /** Кассир стадиона и его голос (задача 18). */
+  private seller: TicketSeller | null = null;
+  private sellerVoice: SellerVoice | null = null;
+  private readonly office = new TicketOffice();
+  /** Открыт разговор с кассиром: герой стоит, мышь не захвачена. */
+  private talking = false;
+  /** Матч уже играли — от этого зависят ответы кассира про запись и просмотр. */
+  private matchPlayed = false;
   /** Герой уже на территории стадиона (для одноразового события входа). */
   private atStadium = false;
   /** Озвучка героя (задача 9). */
@@ -152,6 +164,8 @@ export class Game {
       continueGame: () => void this.startGame(true),
       exit: () => this.exitToShutdown(),
       resume: () => void this.resume(),
+      talk: (questionId: string) => void this.askSeller(questionId),
+      closeTalk: () => this.endTalk(),
       exitToMenu: () => void this.exitToMenu(),
       returnFromShutdown: () => this.returnFromShutdown(),
       hover: () => this.audio.playUi('hover'),
@@ -294,7 +308,12 @@ export class Game {
     // Модель заказчика: сначала пробуем привезённую GLB с анимациями, иначе — процедурная.
     this.character?.dispose();
     this.ui.setLoadingProgress(0.94, 'Герой');
-    this.character = (await loadRiggedHero()) ?? new Character();
+    // Один разбор GLB на двоих: герой и кассир. Копию для NPC снимаем ДО того,
+    // как `RiggedHero` развернёт и отмасштабирует сцену, иначе копия получит
+    // разворот и масштаб дважды.
+    const gltf = await loadHeroGltf();
+    const npcGltf = gltf ? cloneGltfForNpc(gltf) : null;
+    this.character = gltf ? new RiggedHero(gltf) : new Character();
     // Герой стоит на дорожке лицом к дому: камера от третьего лица за плечом
     const island = this.world.island;
     this.player.spawn(0.7, 8.4, island, 0);
@@ -304,6 +323,36 @@ export class Game {
     this.world.scene.add(this.character.group);
     this.world.scene.add(this.character.skeletonHelper);
     this.inspectorSpin = 0;
+
+    // ——— кассир стадиона (задача 18) ————————————————————————————
+    this.endTalk();
+    this.seller?.dispose();
+    this.seller = null;
+    this.sellerVoice?.stop();
+    this.sellerVoice = new SellerVoice(this);
+    if (npcGltf) {
+      this.ui.setLoadingProgress(0.96, 'Кассир');
+      const groundY = island.groundHeightAt(SELLER_SPOT.x, SELLER_SPOT.z);
+      this.seller = new TicketSeller(npcGltf, groundY);
+      this.world.scene.add(this.seller.group);
+      // Сквозь кассира не пройти: коллайдер + снимок для аудита, иначе аудит
+      // задачи 10 честно назовёт его «коллизией без предмета».
+      island.collisions.addCircle(SELLER_SPOT.x, SELLER_SPOT.z, 0.36, groundY + 1.86);
+      island.auditFootprints.push({
+        label: 'кассир',
+        mesh: null,
+        box: new THREE.Box3(
+          new THREE.Vector3(SELLER_SPOT.x - 0.36, groundY, SELLER_SPOT.z - 0.36),
+          new THREE.Vector3(SELLER_SPOT.x + 0.36, groundY + 1.86, SELLER_SPOT.z + 0.36),
+        ),
+        solid: true,
+        base: false,
+        flatFaced: true,
+        triangles: 0,
+      });
+    }
+    this.office.reset();
+    this.matchPlayed = false;
 
     // ——— миссия 01: ремонт в комнате (задача 7) —————————————————
     this.paintMission?.dispose();
@@ -333,6 +382,7 @@ export class Game {
         // 0:0 — это сброс перед матчем, а не гол.
         if (home + away > 0) {
           this.ui.toast(`Гол! ${home}:${away}`, 'success');
+          this.matchPlayed = true;
           this.bus.emit('football:goal', { home, away });
         }
       },
@@ -446,32 +496,122 @@ export class Game {
 
   /** Касса: билет — необязательный шаг, но купить его можно и приятно.
    *  Подсказка показывается один раз за подход, чтобы не забивать экран. */
+  /** Касса (задача 18): рядом — подсказка, E открывает разговор с кассиром.
+   *  Билет больше не выдаётся «по кнопке»: его продаёт живой кассир, а заодно
+   *  отвечает про запись на матч, команды и просмотр. */
   private updateTicketBooth(): void {
-    const boothX = STADIUM.centerX + STADIUM.width / 2 + STADIUM.plazaWidth / 2;
-    const boothZ = STADIUM.centerZ - STADIUM.plazaDepth / 2 + 0.5;
-    const near =
-      Math.abs(this.player.position.x - boothX) < 3.4 &&
-      Math.abs(this.player.position.z - boothZ) < 2.2;
+    if (!this.seller) return;
+    const dx = this.player.position.x - SELLER_SPOT.x;
+    const dz = this.player.position.z - SELLER_SPOT.z;
+    const near = Math.hypot(dx, dz) < 3.6;
     if (!near) {
       this.boothPrompted = false;
+      if (this.talking) this.endTalk();
       return;
     }
+    if (this.talking) return;
     if (!this.boothPrompted) {
       this.boothPrompted = true;
       this.ui.toast(
-        this.hasTicket ? 'Касса · билет уже куплен, проходи к турникетам' : 'Касса · E — купить билет (500 ₽)',
+        this.hasTicket ? 'Касса · билет уже куплен, можно поговорить' : 'Касса · E — поговорить с кассиром',
         'info',
       );
     }
-    if (this.input.wasPressed('KeyE')) {
+    if (this.input.wasPressed('KeyE')) this.openTalk();
+  }
+
+  // ——— разговор с кассиром (задача 18) ————————————————————————
+
+  /** Открыт ли разговор: пока да, герой стоит и мышь не захвачена. */
+  get isTalking(): boolean {
+    return this.talking;
+  }
+
+  /** Сколько mp3 кассира дошло до сборки — для проверок. */
+  get sellerClips(): number {
+    return this.sellerVoice?.clipCount ?? 0;
+  }
+
+  openTalk(): void {
+    const seller = this.seller;
+    if (!seller || this.talking || this.machine.current !== 'playing') return;
+    this.talking = true;
+    this.input.exitPointerLock();
+    this.ui.setHint(null);
+    this.ui.setMissionPrompt(null);
+    this.ui.setTalkAnswer(SELLER_SPEAKER, null);
+    this.ui.openTalk(this.talkOptions());
+    seller.wave();
+    void this.sellerVoice?.preload();
+    this.say(this.office.greeting());
+  }
+
+  endTalk(): void {
+    if (!this.talking) return;
+    this.talking = false;
+    this.ui.closeTalk();
+    this.sellerVoice?.stop();
+    this.seller?.setTalking(false);
+    if (this.machine.current === 'playing' && this.scheme !== 'touch') {
+      void this.input.requestPointerLock();
+    }
+  }
+
+  /** Вопрос выбран: кассир отвечает, билет при необходимости продаётся. */
+  askSeller(questionId: string): void {
+    if (!this.talking) return;
+    const lineId = this.office.answer(questionId, { played: this.matchPlayed, hasTicket: this.hasTicket });
+    if (questionId === 'ticket') {
       if (this.hasTicket) {
         this.ui.toast('Билет уже в кармане', 'info');
       } else {
         this.hasTicket = true;
-        this.ui.toast('Билет куплен · 500 ₽ · проходи к турникетам', 'success');
+        this.boothPrompted = false;
         this.bus.emit('stadium:ticket', { price: 500 });
+        this.ui.toast('Билет куплен · 500 ₽ · проходи к турникетам', 'success');
+        this.seller?.handOver();
       }
     }
+    if (questionId === 'join') {
+      this.ui.toast('Заявка в Viced Boys принята', 'success');
+    }
+    if (lineId) this.say(lineId);
+    this.ui.setTalkOptions(this.talkOptions());
+  }
+
+  /** Проговорить реплику кассира: текст в панель, звук — в его дорожку. */
+  private say(lineId: string): void {
+    const line = lineById(lineId);
+    if (!line) return;
+    this.ui.setTalkAnswer(SELLER_SPEAKER, line.text);
+    this.sellerVoice?.play(line.file);
+    this.seller?.setTalking(true);
+  }
+
+  /** Кнопки разговора: цена билета и пометки берутся из состояния, а не из текста. */
+  private talkOptions(): readonly TalkOption[] {
+    return SELLER_QUESTIONS.map((question) => {
+      if (question.id === 'ticket') {
+        return this.hasTicket
+          ? { id: question.id, label: question.label, note: 'куплен', disabled: true }
+          : { id: question.id, label: question.label, note: '500 ₽' };
+      }
+      if (question.id === 'join') {
+        return this.office.isRegistered
+          ? { id: question.id, label: question.label, note: 'заявка подана' }
+          : { id: question.id, label: question.label };
+      }
+      return { id: question.id, label: question.label };
+    });
+  }
+
+  /** Кассир живёт всегда: дышит, смотрит на покупателя, провожает взглядом. */
+  updateSeller(dt: number): void {
+    const seller = this.seller;
+    if (!seller) return;
+    this.sellerVoice?.update(dt);
+    seller.update(dt, this.world ? this.player.position : null);
+    if (this.sellerVoice?.isSpeaking) seller.setTalking(true);
   }
 
   /** Аудит сцены (задача 10): мерцание, наложения, висящие предметы, осиротевшие
@@ -691,6 +831,7 @@ export class Game {
       this.audio.startAmbience();
       this.audio.applyVolumes(true);
       void this.dialogues?.preload();
+      void this.sellerVoice?.preload();
     });
   };
 

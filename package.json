@@ -19,7 +19,8 @@
     "check:jump": "node tools/offline-run.mjs tools/offline/jump-check.ts",
     "check:stadium": "node tools/offline-run.mjs tools/offline/stadium-check.ts",
     "check:ball": "node tools/offline-run.mjs tools/offline/ball-check.ts",
-    "check:voice": "node tools/offline-run.mjs tools/offline/voice-check.ts"
+    "check:voice": "node tools/offline-run.mjs tools/offline/voice-check.ts",
+    "check:seller": "node tools/offline-run.mjs tools/offline/seller-check.ts"
   },
   "devDependencies": {
     "@types/three": "^0.169.0",

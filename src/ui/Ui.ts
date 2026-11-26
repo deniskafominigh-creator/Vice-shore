@@ -11,6 +11,7 @@ import { MissionHud } from './MissionHud';
 import { PauseMenu } from './PauseMenu';
 import { Panel } from './Panel';
 import { SettingsPanel } from './SettingsPanel';
+import { TalkPanel, type TalkOption } from './TalkPanel';
 import { Toasts, type ToastTone } from './Toasts';
 import { el, wait } from './dom';
 
@@ -26,6 +27,9 @@ export interface UiHandlers {
   readonly continueGame: () => void;
   readonly exit: () => void;
   readonly resume: () => void;
+  /** Спросить кассира (id вопроса) и закрыть разговор. */
+  readonly talk: (questionId: string) => void;
+  readonly closeTalk: () => void;
   readonly exitToMenu: () => void;
   readonly returnFromShutdown: () => void;
   readonly hover: () => void;
@@ -39,6 +43,8 @@ export class Ui {
   private readonly menu: MainMenu;
   private readonly settingsPanel: SettingsPanel;
   private readonly controlsPanel: ControlsPanel;
+  /** Разговор с кассиром (задача 18). Панель одна на игру, содержимое меняется. */
+  private readonly talkPanel: TalkPanel;
   private readonly pauseMenu: PauseMenu;
   private readonly toasts: Toasts;
   private readonly mission: MissionHud;
@@ -110,6 +116,15 @@ export class Ui {
 
     this.controlsPanel = new ControlsPanel(handlers.click, () => this.closeControls(), environment);
 
+    this.talkPanel = new TalkPanel(
+      {
+        onAsk: (id) => handlers.talk(id),
+        onClose: () => handlers.closeTalk(),
+      },
+      'Касса · «Вайс Шор Арена»',
+      'Кассир',
+    );
+
     this.shutdown = this.buildShutdown(handlers);
     this.shutdown.classList.add('is-hidden');
 
@@ -126,6 +141,7 @@ export class Ui {
       this.pauseMenu.root,
       this.controlsPanel.root,
       this.settingsPanel.root,
+      this.talkPanel.root,
       this.loading.root,
       this.shutdown,
       this.fade,
@@ -201,6 +217,30 @@ export class Ui {
 
   closePause(): void {
     this.popModal(this.pauseMenu);
+  }
+
+  // ——— разговор с кассиром (задача 18) ————————————————————————
+
+  /** Открыть панель разговора: вопросы и первая реплика кассира. */
+  openTalk(options: readonly TalkOption[]): void {
+    this.talkPanel.setOptions(options);
+    this.pushModal(this.talkPanel);
+  }
+
+  closeTalk(): void {
+    this.popModal(this.talkPanel);
+  }
+
+  setTalkAnswer(who: string, text: string | null): void {
+    this.talkPanel.setAnswer(who, text);
+  }
+
+  setTalkOptions(options: readonly TalkOption[]): void {
+    this.talkPanel.setOptions(options);
+  }
+
+  get talkOpen(): boolean {
+    return this.talkPanel.isVisible;
   }
 
   /** Закрыть все модальные панели (например, при смене состояния). */

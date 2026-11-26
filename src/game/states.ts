@@ -88,7 +88,8 @@ class PlayingState implements GameState {
     game.ballMission?.refresh();
 
     this.unsubscribeEscape = game.input.onKeyDownGlobal((code) => {
-      if (code === 'Escape') void game.pause();
+      // Пока открыт разговор с кассиром, Esc закрывает его, а не ставит игру на паузу.
+      if (code === 'Escape' && !game.isTalking) void game.pause();
     });
 
     // Захват мыши нужен только клавиатурной схеме: на телефоне его нет,
@@ -126,6 +127,8 @@ class PlayingState implements GameState {
     if (zoom !== 0) game.thirdPersonCamera.zoom(zoom * 0.0022);
     // Реплики героя живут и во время покраски (задача 9)
     game.dialogues?.update(dt);
+    // Кассир живёт и во время разговора: он дышит, смотрит и кивает (задача 18)
+    game.updateSeller(dt);
 
     if (game.scheme === 'touch') {
       game.touch.setMode(game.paintMission?.painting ? 'painting' : 'world');
@@ -134,6 +137,12 @@ class PlayingState implements GameState {
 
     if (game.inspectorActive) {
       game.updateInspector(dt);
+      return;
+    }
+
+    // Разговор с кассиром: герой стоит, камера не крутится, ввод у панели (задача 18)
+    if (game.isTalking) {
+      game.dialogues?.pauseIdle();
       return;
     }
 

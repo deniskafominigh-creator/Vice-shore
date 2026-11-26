@@ -1626,3 +1626,86 @@ body {
   padding-top: 0;
   border-top: 0;
 }
+
+/* ——— разговор с кассиром (задача 18) ————————————————————————————— */
+
+.talk__speaker {
+  font-size: 10px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.talk__answer {
+  min-height: 62px;
+  padding: 14px 18px;
+  border-left: 2px solid var(--accent);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.talk__answer.is-empty {
+  color: var(--muted);
+}
+
+.talk__options {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.talk__option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.talk__option:hover:not(:disabled),
+.talk__option:focus-visible:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.07);
+  outline: none;
+}
+
+.talk__option:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.talk__key {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.talk__label {
+  flex: 1 1 auto;
+}
+
+.talk__note {
+  flex: 0 0 auto;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
