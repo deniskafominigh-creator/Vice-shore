@@ -426,3 +426,47 @@ export const DEBUG = {
   /** 1..4 — тестовые позы в режиме осмотра. */
   poseKeys: ['Digit1', 'Digit2', 'Digit3', 'Digit4'] as const,
 } as const;
+
+/** Задача 22: игровое время и матч.
+ *
+ *  Время идёт честно: если сказали «матч в 19:00», он начнётся в 19:00 по
+ *  игровым часам, которые видно сверху экрана. Часы стартуют после второй
+ *  вступительной миссии, в 17:40 — до матча полтора игровых часа.
+ */
+export const CLOCK = {
+  /** Старт игрового дня после вступительных миссий (17:40). */
+  startHour: 17,
+  startMinute: 40,
+  /** Сколько игровых минут проходит за реальную секунду. 1 мин/с → до матча 80 с. */
+  minutesPerSecond: 1,
+  /** Час матча и минута начала. */
+  matchHour: 19,
+  matchMinute: 0,
+  /** Конец рабочего дня (катсцена): столько показывают часы на финале. */
+  endHour: 21,
+  endMinute: 30,
+} as const;
+
+export const CLOCK_STYLES = ['analog', 'digital', 'neon'] as const;
+export type ClockStyle = (typeof CLOCK_STYLES)[number];
+
+export const CLOCK_STYLE_LABELS: Record<ClockStyle, string> = {
+  analog: 'Циферблат',
+  digital: 'Табло',
+  neon: 'Неон',
+};
+
+/** Матч (задача 22). */
+export const MATCH = {
+  /** Матч до трёх голов. */
+  goalsToWin: 3,
+  /** Игроков в команде (вратарь + три полевых). */
+  teamSize: 4,
+  /** Половина поля, где начинается матч, м. */
+  pitchHalfX: 15,
+  pitchHalfZ: 8.5,
+  /** С какой скоростью игроки бегают, м/с. */
+  runSpeed: 5.4,
+  /** Разгон и торможение, м/с². */
+  acceleration: 9,
+} as const;

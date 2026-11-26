@@ -8,6 +8,9 @@ import {
   type QualityLevel,
   type SubtitleBackdrop,
   type SubtitleFont,
+  CLOCK_STYLES,
+  CLOCK_STYLE_LABELS,
+  type ClockStyle,
 } from '../core/Config';
 import {
   CONTROL_PREFERENCES,
@@ -117,6 +120,20 @@ export class SettingsPanel extends Panel {
 
     // ——— интерфейс: что показывать поверх игры (задача 12) ——————————
     this.body.append(el('div', { className: 'panel__group', text: 'Интерфейс' }));
+
+    // ——— часы (задача 22): стиль циферблата выбирает игрок —————————
+    this.body.append(el('div', { className: 'panel__group', text: 'Часы' }));
+
+    this.addRow(
+      'Стиль часов',
+      'Циферблат в правом верхнем углу: аналоговый, цифровой или неон',
+      this.buildSegmented<ClockStyle>(
+        CLOCK_STYLES,
+        (value) => CLOCK_STYLE_LABELS[value],
+        () => this.settings.get('clockStyle'),
+        (value) => this.settings.set('clockStyle', value),
+      ),
+    );
 
     this.addRow(
       'Подсказки управления',

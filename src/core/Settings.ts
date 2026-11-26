@@ -1,6 +1,8 @@
 import {
+  CLOCK_STYLES,
   GAME,
   QUALITY_ORDER,
+  type ClockStyle,
   SUBTITLE_BACKDROPS,
   SUBTITLE_FONTS,
   type QualityLevel,
@@ -39,6 +41,8 @@ export interface GameSettings {
   /** Глубина резкости (BokehPass). По умолчанию включена, но её можно снять:
    *  на слабом экране размытый дальний план читается как «мыло». */
   depthOfField: boolean;
+  /** Стиль часов сверху экрана (задача 22). */
+  clockStyle: ClockStyle;
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -61,10 +65,11 @@ export const DEFAULT_SETTINGS: GameSettings = {
   showActionPrompts: true,
   showMissionHud: true,
   depthOfField: true,
+  clockStyle: 'neon',
 };
 
 /** Проверка и приведение значений: испорченный localStorage не должен ломать запуск. */
-function sanitize(raw: Partial<Record<keyof GameSettings, unknown>>): GameSettings {
+export function sanitizeSettings(raw: Partial<Record<keyof GameSettings, unknown>>): GameSettings {
   const volume = (value: unknown, fallback: number): number =>
     typeof value === 'number' && Number.isFinite(value) ? clamp(value, 0, 1) : fallback;
 
@@ -110,6 +115,10 @@ function sanitize(raw: Partial<Record<keyof GameSettings, unknown>>): GameSettin
       typeof raw.showMissionHud === 'boolean' ? raw.showMissionHud : DEFAULT_SETTINGS.showMissionHud,
     depthOfField:
       typeof raw.depthOfField === 'boolean' ? raw.depthOfField : DEFAULT_SETTINGS.depthOfField,
+    clockStyle:
+      typeof raw.clockStyle === 'string' && CLOCK_STYLES.includes(raw.clockStyle as ClockStyle)
+        ? (raw.clockStyle as ClockStyle)
+        : DEFAULT_SETTINGS.clockStyle,
   };
 }
 
@@ -130,7 +139,7 @@ export class SettingsStore {
 
   set<K extends keyof GameSettings>(key: K, value: GameSettings[K]): void {
     if (this.values[key] === value) return;
-    this.values = sanitize({ ...this.values, [key]: value });
+    this.values = sanitizeSettings({ ...this.values, [key]: value });
     this.persist();
     this.bus.emit('settings:changed', { key: String(key), value: this.values[key] });
   }
@@ -147,7 +156,7 @@ export class SettingsStore {
     try {
       const raw = localStorage.getItem(GAME.settingsKey);
       if (!raw) return SettingsStore.firstRun();
-      return sanitize(JSON.parse(raw) as Partial<Record<keyof GameSettings, unknown>>);
+      return sanitizeSettings(JSON.parse(raw) as Partial<Record<keyof GameSettings, unknown>>);
     } catch (error) {
       console.warn('[Settings] не удалось прочитать настройки, используются значения по умолчанию:', error);
       return { ...DEFAULT_SETTINGS };

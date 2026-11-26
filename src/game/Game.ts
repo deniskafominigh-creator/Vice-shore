@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Assets, type LoadedAssets } from '../core/Assets';
 import { AudioSystem } from '../core/Audio';
-import { DEBUG, FOG, ISLAND, QUALITY_PRESETS, STADIUM, type QualityLevel } from '../core/Config';
+import { CLOCK, DEBUG, FOG, ISLAND, MATCH, QUALITY_PRESETS, STADIUM, type QualityLevel } from '../core/Config';
+import { GameClock } from '../core/GameClock';
 import { EventBus } from '../core/EventBus';
 import type { GameEventMap } from '../core/Events';
 import { GameStateMachine } from '../core/GameStateMachine';
@@ -32,6 +33,12 @@ import { PaintMission } from './PaintMission';
 import { BallMission } from './BallMission';
 import { Football } from './Football';
 import { RenderPipeline } from './RenderPipeline';
+import { VoiceBank } from './VoiceBank';
+import { StreetLife } from './StreetLife';
+import { FootballMatch, type MatchSound } from './FootballMatch';
+import { EndOfDay } from './EndOfDay';
+import { MISSION_01, MISSION_02 } from '../data/quests';
+import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const DEFAULT_BOUNDS = { minX: -13, maxX: 13, minZ: -10, maxZ: 10 } as const;
 
@@ -64,6 +71,25 @@ export class Game {
   ballMission: BallMission | null = null;
   /** Мяч на стадионе с физикой и счётом (задача 16). */
   football: Football | null = null;
+  /** Игровые часы (задача 22): время матча и конец дня. */
+  readonly clock: GameClock;
+  /** Уличные жители и голоса задачи 22. */
+  street: StreetLife | null = null;
+  voices: VoiceBank | null = null;
+  /** Матч до трёх голов (задача 22). */
+  match: FootballMatch | null = null;
+  /** Катсцена конца дня. */
+  private cutscene: EndOfDay | null = null;
+  /** Копия GLB для клонов игроков и жителей: одна на весь мир. */
+  private npcGltf: GLTF | null = null;
+  /** Часы уже показаны (после двух вступительных миссий). */
+  private clockShown = false;
+  /** Матч назначен на 19:00 и уже сыгран. */
+  private matchScheduled = false;
+  private matchStarted = false;
+  private cutsceneActive = false;
+  /** Через сколько секунд после свистка уходить в катсцену. */
+  private cutsceneAt = -1;
   /** Идёт зарядка удара (Space зажали рядом с мячом). */
   private kickCharging = false;
   private stadiumZone: StadiumZone = 'outside';
@@ -128,6 +154,9 @@ export class Game {
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     this.canvas = canvas;
+
+    // ——— часы (задача 22): тикают только во время игры ————————————
+    this.clock = new GameClock((minutes, label) => this.onClockTick(minutes, label));
 
     // ——— данные игрока ——————————————————————————————————————————
     this.settings = new SettingsStore(this.bus);
@@ -302,6 +331,10 @@ export class Game {
     this.input.dispose();
     this.ui.dispose();
     this.dialogues?.dispose();
+    this.cutscene?.dispose();
+    this.match?.clear();
+    this.street?.dispose();
+    this.voices?.stop();
     this.audio.dispose();
     this.paintMission?.dispose();
     this.ballMission?.dispose();
@@ -382,6 +415,39 @@ export class Game {
     this.paintMission = new PaintMission(this);
     this.paintMission.restore();
 
+    // ——— уличные жители (задача 22): соседи ходят по улице ———————————
+    this.street?.dispose();
+    this.street = null;
+    this.voices?.stop();
+    this.voices = new VoiceBank(this.audio);
+    this.npcGltf = npcGltf;
+    if (npcGltf) {
+      this.ui.setLoadingProgress(0.965, 'Соседи');
+      this.street = new StreetLife(
+        npcGltf,
+        this.world.scene,
+        {
+          groundHeightAt: (x, z) => island.groundHeightAt(x, z),
+          isWalkable: (x, z) => island.isWalkable(x, z),
+        },
+        this.ui,
+        this.voices,
+      );
+    }
+    // Матч и катсцена пересобираются вместе с миром
+    this.match?.clear();
+    this.match = null;
+    this.cutscene?.dispose();
+    this.cutscene = null;
+    this.cutsceneActive = false;
+    this.cutsceneAt = -1;
+    this.clock.stop();
+    this.clock.setTime(CLOCK.startHour, CLOCK.startMinute);
+    this.clockShown = false;
+    this.matchScheduled = false;
+    this.matchStarted = false;
+    this.ui.setClockVisible(false);
+
     // ——— стадион (задача 16): мяч, счёт, табло —————————————————————
     this.football?.dispose();
     island.stadium.scoreboard.setScore(0, 0);
@@ -428,6 +494,12 @@ export class Game {
     const island = this.world?.island;
     const character = this.character;
     if (!island || !character) return;
+
+    // Катсцена конца дня: герой спит, ввод не трогаем, сцена идёт по таймлайну
+    if (this.cutsceneActive) {
+      this.cutscene?.update(dt);
+      return;
+    }
 
     // Обзор: на компьютере — только с захваченной мышью, на телефоне — свайп.
     if (this.input.isPointerLocked || this.scheme === 'touch') this.thirdPersonCamera.look(look.x, look.y);
@@ -482,6 +554,215 @@ export class Game {
     character.setJump(this.player.jumpPhase01, this.player.isAirborne);
 
     this.thirdPersonCamera.update(dt, this.player.position, island.collisions);
+
+    // Жизнь поверх героя (задача 22): часы, соседи, матч, катсцена
+    this.updateClockAndLife(dt);
+    this.updateMatch(dt, me);
+  }
+
+  // ——— задача 22: часы, матч, катсцена ——————————————————————————————
+
+  /** Часы и всё, что от них зависит: подсказка, свисток в 19:00, конец дня. */
+  private updateClockAndLife(dt: number): void {
+    const island = this.world?.island;
+    if (!island) return;
+
+    this.street?.update(dt, this.player.position);
+
+    // Часы появляются после двух вступительных миссий: раньше расписание
+    // игроку всё равно не нужно, а лишний элемент в HUD мешает.
+    if (!this.clockShown) {
+      if (this.quests.isCompleted(MISSION_01.id) && this.quests.isCompleted(MISSION_02.id)) {
+        this.clockShown = true;
+        this.ui.setClockVisible(true);
+        this.applyClockStyle();
+        this.ui.setClockTime(this.clock.totalMinutes);
+        this.clock.start();
+        this.bus.emit('clock:tick', { minutes: this.clock.totalMinutes, label: this.clock.label });
+        this.ui.flashMission(`${this.clock.label} · вечер · матч в 19:00`, 'info');
+      }
+    } else {
+      const before = this.clock.totalMinutes;
+      this.clock.update(dt);
+      if (this.clock.totalMinutes !== before) {
+        this.onClockTick(this.clock.totalMinutes, this.clock.label);
+      }
+    }
+
+    // Катсцена назначена — уходим в неё, когда стихнет празднование
+    if (this.cutsceneAt > 0 && this.elapsed >= this.cutsceneAt) {
+      this.cutsceneAt = -1;
+      this.startCutscene();
+    }
+    if (this.cutsceneActive) this.cutscene?.update(0);
+  }
+
+  /** Тик часов: HUD, обратный отсчёт и свисток ровно в 19:00. */
+  private onClockTick(minutes: number, label: string): void {
+    this.ui.setClockTime(minutes);
+    this.bus.emit('clock:tick', { minutes, label });
+    if (this.matchStarted) return;
+
+    const until = this.clock.minutesUntil(CLOCK.matchHour, CLOCK.matchMinute);
+    this.ui.setClockUrgent(until > 0 && until <= 20);
+    if (until > 0 && until <= 40) {
+      this.ui.setClockHint(`матч в ${String(CLOCK.matchHour).padStart(2, '0')}:${String(CLOCK.matchMinute).padStart(2, '0')} · ${until} мин`);
+    } else {
+      this.ui.setClockHint(null);
+    }
+
+    if (!this.matchScheduled && until > 0 && until <= 45) {
+      this.matchScheduled = true;
+      this.ui.toast('Кассир предупредил: матч в 19:00. Не опаздывай', 'info');
+      this.bus.emit('match:scheduled', {
+        at: CLOCK.matchHour * 60 + CLOCK.matchMinute,
+        label: `${String(CLOCK.matchHour).padStart(2, '0')}:${String(CLOCK.matchMinute).padStart(2, '0')}`,
+      });
+    }
+
+    // Ровно 19:00 — свисток. Опоздал — команда начинает без тебя.
+    const atMatchTime = this.clock.hour === CLOCK.matchHour && this.clock.minute === CLOCK.matchMinute;
+    if (atMatchTime) this.beginMatch();
+  }
+
+  /** Применить выбранный стиль часов (настройки → часы). */
+  applyClockStyle(): void {
+    this.clock.setStyle(this.settings.get('clockStyle'));
+    // Стиль применяет интерфейс: у виджета один атрибут data-style на все три вида
+    this.ui.applyInterface();
+    this.ui.setClockTime(this.clock.totalMinutes);
+  }
+
+  /** Свисток: собираем матч, выводим игроков и табло. */
+  private beginMatch(): void {
+    const island = this.world?.island;
+    const football = this.football;
+    if (!island || !football || this.matchStarted) return;
+    this.matchStarted = true;
+    this.ui.setClockHint(null);
+    this.ui.setClockUrgent(false);
+    this.bus.emit('match:ready', { minutes: this.clock.totalMinutes });
+
+    if (!this.npcGltf) {
+      this.ui.toast('Матч не собрать: нет модели игроков', 'warning');
+      return;
+    }
+    const world = this.world;
+    if (!world) return;
+    if (!this.match) {
+      this.match = new FootballMatch({
+        scene: world.scene,
+        football,
+        gltf: this.npcGltf,
+        groundY: island.groundHeightAt(STADIUM.centerX, STADIUM.centerZ) + 0.05,
+        ui: this.ui,
+        bus: this.bus,
+        onSound: (sound, power) => this.playMatchSound(sound, power),
+        onFinished: (home, away) => this.finishMatch(home, away),
+      });
+    }
+    this.match.start();
+    this.ui.flashMission(`19:00 · свисток! Матч до ${MATCH.goalsToWin} голов`, 'success');
+    this.audio.playWhistle(false);
+  }
+
+  /** Кадр матча: симуляция, игроки, табло. */
+  private updateMatch(dt: number, me: { x: number; z: number; yaw: number; speed: number }): void {
+    const match = this.match;
+    if (!match || !match.isRunning) return;
+    match.update(dt, { x: me.x, z: me.z, yaw: me.yaw, speed: me.speed });
+  }
+
+  /** Звук матча: свисток, удар, гол — своими синтезаторами. */
+  private playMatchSound(sound: MatchSound, power: number): void {
+    switch (sound) {
+      case 'kick':
+        this.audio.playThrow(power);
+        break;
+      case 'goal':
+        this.audio.playGoal(true);
+        this.audio.playCheer(1);
+        break;
+      case 'save':
+        this.audio.playPickup();
+        break;
+      case 'shout':
+        this.audio.playCheer(0.45);
+        break;
+      case 'whistle':
+        this.audio.playWhistle(true);
+        break;
+      case 'end':
+        this.audio.playWhistle(false);
+        this.audio.playGoal(true);
+        break;
+      default:
+        break;
+    }
+  }
+
+  /** Финальный свисток: время прыгает к концу дня, затем катсцена. */
+  private finishMatch(home: number, away: number): void {
+    this.matchPlayed = true;
+    this.clock.catchUpTo(CLOCK.endHour, CLOCK.endMinute);
+    this.ui.setClockTime(this.clock.totalMinutes);
+    this.ui.setClockHint('конец рабочего дня');
+    this.ui.setClockUrgent(false);
+    const win = home > away;
+    this.ui.flashMission(
+      win ? `Победа ${home}:${away} · конец рабочего дня` : `Матч ${home}:${away} · конец рабочего дня`,
+      win ? 'success' : 'info',
+    );
+    this.bus.emit('match:finished', { home, away });
+    this.cutsceneAt = this.elapsed + 2.4;
+  }
+
+  /** Катсцена конца дня: вилла, диван, сон. */
+  private startCutscene(): void {
+    const island = this.world?.island;
+    const character = this.character;
+    const world = this.world;
+    if (!island || !character || !world || this.cutsceneActive) return;
+    this.cutsceneActive = true;
+    this.cutscene?.dispose();
+    this.cutscene = new EndOfDay({
+      ui: this.ui,
+      voices: this.voices ?? (this.voices = new VoiceBank(this.audio)),
+      hero: character.group,
+      floorY: island.villa.floorY,
+      sofa: { x: -3.9, z: -9.4 },
+      onFinish: () => this.endCutscene(),
+      restore: () => this.setActiveCamera(this.thirdPersonCamera.camera),
+    });
+    this.cutscene.camera.aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    this.cutscene.camera.updateProjectionMatrix();
+    this.cutscene.start(world.scene);
+    this.setActiveCamera(this.cutscene.camera);
+    this.ui.setClockHint('сон');
+    this.bus.emit('cutscene:shot', { index: 0, caption: 'КОНЕЦ РАБОЧЕГО ДНЯ' });
+  }
+
+  /** Сцена закончилась: новый день, герой снова на террасе. */
+  private endCutscene(): void {
+    const island = this.world?.island;
+    const character = this.character;
+    this.cutsceneActive = false;
+    this.setActiveCamera(this.thirdPersonCamera.camera);
+    if (!island || !character) return;
+    this.clock.setTime(CLOCK.startHour, CLOCK.startMinute);
+    this.clock.start();
+    this.ui.setClockTime(this.clock.totalMinutes);
+    this.player.spawn(0.7, 8.4, island, 0);
+    character.group.position.copy(this.player.position);
+    character.group.rotation.y = this.player.yaw;
+    this.thirdPersonCamera.snapTo(this.player.position, this.player.yaw, island.collisions);
+    this.match?.clear();
+    this.ui.setClockHint(null);
+    this.ui.toast('Новый день · Вайс Шор ждёт', 'success');
+  }
+
+  get isCutscene(): boolean {
+    return this.cutsceneActive;
   }
 
   /** Вход на стадион: при первом заходе на площадь и на поле — подсказка.
@@ -954,11 +1235,15 @@ export class Game {
         // Субтитры включили/выключили посреди реплики (задача 9)
         if (payload.key === 'subtitles') this.dialogues?.refreshSubtitles();
         // Задача 11: смена схемы управления и полноэкранный режим
+        if (payload.key === 'clockStyle') this.applyClockStyle();
         if (payload.key === 'controls') this.applyControlsScheme();
         if (payload.key === 'fullscreen') this.applyFullscreen();
       }),
       this.bus.on('audio:unlocked', (payload) => {
-        if (payload.ok) void this.dialogues?.preload();
+        if (!payload.ok) return;
+        void this.dialogues?.preload();
+        // Голоса задачи 22: катсцена и приветствия соседей
+        void this.voices?.preload();
       }),
     );
 

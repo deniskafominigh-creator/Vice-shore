@@ -22,7 +22,9 @@
     "check:voice": "node tools/offline-run.mjs tools/offline/voice-check.ts",
     "check:seller": "node tools/offline-run.mjs tools/offline/seller-check.ts",
     "check:graphics": "node tools/offline-run.mjs tools/offline/graphics-check.ts",
-    "check:details": "node tools/offline-run.mjs tools/offline/details-check.ts"
+    "check:details": "node tools/offline-run.mjs tools/offline/details-check.ts",
+    "check:clock": "node tools/offline-run.mjs tools/offline/clock-check.ts",
+    "check:match": "node tools/offline-run.mjs tools/offline/match-check.ts"
   },
   "devDependencies": {
     "@types/three": "^0.169.0",

@@ -56,6 +56,8 @@ export class Football {
   private chargeTime = 0;
   /** Мяч в сетке: пока идёт пауза после гола, физика стоит. */
   private celebrate = 0;
+  /** Автоцентровка после гола: в матче её делает MatchSim. */
+  private autoCentre = true;
 
   constructor(private readonly options: FootballOptions) {
     const texture = createBallTexture();
@@ -81,6 +83,44 @@ export class Football {
 
   get speed(): number {
     return this.velocity.length();
+  }
+
+  /** Координаты мяча — интерфейс MatchBall для игроков матча. */
+  get x(): number {
+    return this.position.x;
+  }
+
+  get z(): number {
+    return this.position.z;
+  }
+
+  /** Горизонтальная скорость — нужна игрокам матча для чтения полёта мяча. */
+  get vx(): number {
+    return this.velocity.x;
+  }
+
+  get vz(): number {
+    return this.velocity.z;
+  }
+
+  /** Прямой импульс: бьёт ИИ-игрок матча (герой бьёт через зарядку). */
+  kick(vx: number, vz: number, lift = 0.3): void {
+    if (this.celebrate > 0) return;
+    this.velocity.set(vx, Math.hypot(vx, vz) * lift, vz);
+  }
+
+  /** Поставить мяч в точку: ведение ИИ и вбрасывание. */
+  place(x: number, z: number): void {
+    this.position.x = x;
+    this.position.z = z;
+    this.position.y = this.options.groundHeightAt(x, z) + this.radius;
+    this.velocity.set(0, 0, 0);
+    this.mesh.position.copy(this.position);
+  }
+
+  /** Матч сам центрует мяч после гола — тогда физика ждёт его команды. */
+  setAutoCentre(value: boolean): void {
+    this.autoCentre = value;
   }
 
   /** Расстояние от героя до мяча по земле. */
@@ -141,6 +181,7 @@ export class Football {
     if (this.charging) this.chargeTime = Math.min(CHARGE_FULL_TIME, this.chargeTime + dt);
 
     if (this.celebrate > 0) {
+      if (!this.autoCentre) return;
       this.celebrate = Math.max(0, this.celebrate - dt);
       if (this.celebrate === 0) this.reset();
       return;

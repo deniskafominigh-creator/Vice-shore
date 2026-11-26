@@ -58,7 +58,8 @@ export class Island {
 
   private readonly materials: IslandMaterials;
   private readonly vegetation: VegetationResult;
-  private readonly villa: VillaResult;
+  /** Дом: нужен катсцене конца дня (пол и границы комнаты). */
+  readonly villa: VillaResult;
   private readonly interior: InteriorResult;
   private readonly geometries: THREE.BufferGeometry[] = [];
   /** Сколько мешей было и стало после склейки статики (для отчёта о бюджете). */
@@ -205,6 +206,14 @@ export class Island {
     if (normalised <= 1) return { x, z };
     const scale = 1 / Math.sqrt(normalised);
     return { x: x * scale, z: z * scale };
+  }
+
+  /** Свободно ли место для ног: не стена, не забор, не вода.
+   *  Нужно жителям улицы (задача 22), чтобы маршрут не проходил сквозь дом. */
+  isWalkable(x: number, z: number): boolean {
+    const y = this.groundHeightAt(x, z);
+    if (y <= 0.01) return false; // вода
+    return !this.collisions.isBlocked(x, z, 0.42, y + 0.9);
   }
 
   /** Координаты земли под точкой: газон, плита площадки, пол дома. */

@@ -1901,3 +1901,318 @@ body {
     padding: 10px 12px;
   }
 }
+
+/* ——— Часы (задача 22) ————————————————————————————————————————— */
+
+.clock {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px 7px 10px;
+  border-radius: 999px;
+  background: rgba(6, 17, 24, 0.66);
+  border: 1px solid var(--faint);
+  backdrop-filter: blur(6px);
+  color: var(--text);
+  pointer-events: none;
+  transition: opacity 0.3s var(--ease), transform 0.3s var(--ease);
+}
+
+.clock.is-hidden {
+  display: none;
+}
+
+.clock.is-visible {
+  opacity: 1;
+}
+
+.clock__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  line-height: 1;
+}
+
+.clock__stack.is-off {
+  display: none;
+}
+
+.clock__digits {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+
+.clock__caption {
+  font-family: var(--ui);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.clock__face {
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+
+.clock__face.is-off {
+  display: none;
+}
+
+.clock__ring {
+  fill: rgba(255, 255, 255, 0.04);
+  stroke: var(--faint);
+  stroke-width: 2;
+}
+
+.clock__tick {
+  fill: var(--muted);
+}
+
+.clock__hand {
+  stroke: var(--text);
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  transform-origin: 50% 50%;
+}
+
+.clock__hand--minute {
+  stroke-width: 2.4;
+  stroke: var(--accent);
+}
+
+.clock__pin {
+  fill: var(--accent);
+}
+
+/* Циферблат: чуть шире и с меткой дня */
+.clock[data-style='analog'] {
+  padding: 6px 16px 6px 6px;
+  gap: 8px;
+}
+
+.clock[data-style='analog'] .clock__digits {
+  font-size: 17px;
+  opacity: 0.9;
+}
+
+/* Неон: тёплое свечение в духе города */
+.clock[data-style='neon'] {
+  border-color: rgba(226, 89, 60, 0.4);
+  box-shadow: 0 0 18px rgba(226, 89, 60, 0.25), inset 0 0 12px rgba(255, 176, 46, 0.1);
+}
+
+.clock[data-style='neon'] .clock__digits {
+  color: #ffd9a8;
+  text-shadow: 0 0 10px rgba(255, 176, 46, 0.55), 0 0 22px rgba(226, 89, 60, 0.35);
+}
+
+/* Табло: строго и сухо */
+.clock[data-style='digital'] {
+  border-radius: 4px;
+  border-color: rgba(242, 246, 248, 0.22);
+  background: rgba(6, 17, 24, 0.82);
+}
+
+.clock[data-style='digital'] .clock__digits {
+  color: #dff1f4;
+}
+
+.clock.is-urgent {
+  border-color: var(--accent);
+  animation: clock-pulse 1.6s ease-in-out infinite;
+}
+
+.clock.is-hint .clock__caption {
+  color: var(--accent);
+  letter-spacing: 0.12em;
+}
+
+@keyframes clock-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(255, 176, 46, 0);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(255, 176, 46, 0.45);
+  }
+}
+
+/* Когда часы видны, плашка задачи уезжает ниже, чтобы не перекрываться */
+.has-clock .mission-task {
+  top: 66px;
+}
+
+/* ——— Табло матча ————————————————————————————————————————————— */
+
+.match-hud {
+  position: absolute;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 23;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 18px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(8, 22, 30, 0.9), rgba(6, 17, 24, 0.7));
+  border: 1px solid rgba(255, 176, 46, 0.28);
+  color: var(--text);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
+}
+
+.match-hud.is-visible {
+  opacity: 1;
+}
+
+.match-hud__team {
+  font-family: var(--display);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.match-hud__team--home {
+  color: #7fe3d8;
+}
+
+.match-hud__team--away {
+  color: #ffb8a1;
+}
+
+.match-hud__score {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+.match-hud__note {
+  font-family: var(--ui);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.match-hud.is-goal {
+  animation: match-goal 0.9s var(--ease);
+  border-color: var(--accent);
+}
+
+@keyframes match-goal {
+  0% {
+    transform: translateX(-50%) scale(1);
+  }
+  30% {
+    transform: translateX(-50%) scale(1.12);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+/* ——— Катсцена конца дня ————————————————————————————————————— */
+
+.cutscene {
+  position: absolute;
+  inset: 0;
+  z-index: 35;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s var(--ease);
+}
+
+.cutscene.is-visible {
+  opacity: 1;
+}
+
+.cutscene__bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  background: #050f16;
+  transition: height 0.7s var(--ease);
+}
+
+.cutscene.is-visible .cutscene__bar--top {
+  height: 9vh;
+}
+
+.cutscene.is-visible .cutscene__bar--bottom {
+  height: 12vh;
+}
+
+.cutscene__bar--top {
+  top: 0;
+}
+
+.cutscene__bar--bottom {
+  bottom: 0;
+}
+
+.cutscene__caption {
+  position: absolute;
+  left: 50%;
+  bottom: 13vh;
+  transform: translateX(-50%);
+  max-width: min(760px, 84vw);
+  text-align: center;
+  font-family: var(--ui);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--sand);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.75);
+  opacity: 0;
+  transition: opacity 0.45s var(--ease);
+}
+
+.cutscene__caption.is-visible {
+  opacity: 1;
+}
+
+.cutscene__title {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(28px, 5vw, 62px);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text);
+  text-shadow: 0 6px 40px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transition: opacity 0.6s var(--ease);
+}
+
+.cutscene__title.is-visible {
+  opacity: 1;
+}
+
+.cutscene__sub {
+  display: block;
+  margin-top: 10px;
+  font-family: var(--ui);
+  font-weight: 400;
+  font-size: clamp(12px, 1.4vw, 16px);
+  letter-spacing: 0.2em;
+  color: var(--accent);
+}

@@ -341,6 +341,19 @@ export class AudioSystem {
     if (second) this.tone(1046, 1046, 'sine', 0.2, 0.3, 0.28);
   }
 
+  /** Свисток арбитра (задача 22): два тона с дрожанием — слышно на весь стадион. */
+  playWhistle(short = true): void {
+    const length = short ? 0.2 : 0.42;
+    this.tone(2340, 2260, 'sine', 0.13, length);
+    this.tone(3120, 3040, 'sine', 0.045, length * 0.85, 0.01);
+    this.noiseBurst(length * 1.15, 0.028, 2600, 'bandpass');
+  }
+
+  /** Трибуны: шумовая волна, тише при слабом поводе. */
+  playCheer(power = 1): void {
+    this.noiseBurst(0.85, 0.05 + 0.05 * power, 1400, 'bandpass');
+  }
+
   private noiseBurst(duration: number, peak: number, frequency: number, type: BiquadFilterType): void {
     if (!this.context || !this.sfx) return;
     const ctx = this.context;

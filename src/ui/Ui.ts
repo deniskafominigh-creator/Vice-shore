@@ -4,6 +4,7 @@ import type { GameEventMap } from '../core/Events';
 import type { SettingsStore } from '../core/Settings';
 import type { ControlScheme, PlatformInfo } from '../core/Platform';
 import type { FullscreenController } from '../core/Fullscreen';
+import { ClockWidget } from './ClockWidget';
 import { ControlsPanel } from './ControlsPanel';
 import { LoadingScreen } from './LoadingScreen';
 import { MainMenu } from './MainMenu';
@@ -55,6 +56,15 @@ export class Ui {
   private readonly kickFill: HTMLElement;
   /** Субтитры реплик героя (задача 9). */
   private readonly subtitle: HTMLElement;
+  /** Часы сверху экрана (задача 22) и табло матча под ними. */
+  private readonly clockWidget: ClockWidget;
+  private readonly matchHud: HTMLElement;
+  private readonly matchScoreEl: HTMLElement;
+  private readonly matchNoteEl: HTMLElement;
+  /** Катсцена конца дня: полосы кадра, подпись и титр. */
+  private readonly cutscene: HTMLElement;
+  private readonly cutsceneCaption: HTMLElement;
+  private readonly cutsceneTitle: HTMLElement;
   private readonly debug: HTMLElement;
   private readonly shutdown: HTMLElement;
 
@@ -83,6 +93,28 @@ export class Ui {
       el('div', { className: 'kick-charge__track' }, this.kickFill),
     );
     this.subtitle = el('div', { className: 'subtitle' });
+    this.clockWidget = new ClockWidget();
+    this.matchScoreEl = el('span', { className: 'match-hud__score', text: '0 : 0' });
+    this.matchNoteEl = el('span', { className: 'match-hud__note', text: 'ДО 3 ГОЛОВ' });
+    this.matchHud = el(
+      'div',
+      { className: 'match-hud' },
+      el('span', { className: 'match-hud__team match-hud__team--home', text: 'МОРСКИЕ ВОЛКИ' }),
+      this.matchScoreEl,
+      el('span', { className: 'match-hud__team match-hud__team--away', text: 'КОРАЛЛОВЫЕ КОРОЛИ' }),
+      this.matchNoteEl,
+    );
+
+    this.cutsceneCaption = el('div', { className: 'cutscene__caption' });
+    this.cutsceneTitle = el('div', { className: 'cutscene__title' });
+    this.cutscene = el(
+      'div',
+      { className: 'cutscene' },
+      el('div', { className: 'cutscene__bar cutscene__bar--top' }),
+      el('div', { className: 'cutscene__bar cutscene__bar--bottom' }),
+      this.cutsceneTitle,
+      this.cutsceneCaption,
+    );
     this.debug = el('div', { className: 'debug' });
     this.debug.style.display = 'none';
 
@@ -132,6 +164,9 @@ export class Ui {
       this.hint,
       this.kick,
       this.subtitle,
+      this.clockWidget.root,
+      this.matchHud,
+      this.cutscene,
       this.mission.root,
       this.touchHolder,
       this.toasts.root,
@@ -159,6 +194,7 @@ export class Ui {
     this.root.classList.toggle('hide-control-hints', !values.showControlHints);
     this.root.classList.toggle('hide-action-prompts', !values.showActionPrompts);
     this.root.classList.toggle('hide-mission-hud', !values.showMissionHud);
+    this.clockWidget.setStyle(values.clockStyle);
     this.subtitle.dataset.font = values.subtitleFont;
     this.subtitle.dataset.backdrop = values.subtitleBackdrop;
     this.subtitle.classList.toggle('is-hidden', !values.subtitles);
@@ -315,6 +351,90 @@ export class Ui {
     }
     this.debug.style.display = 'block';
     this.debug.textContent = text;
+  }
+
+  // ——— Часы и матч (задача 22) ————————————————————————————————
+
+  /** Показать часы: по сюжету они появляются после двух вступительных миссий. */
+  setClockVisible(visible: boolean): void {
+    if (visible) this.clockWidget.show();
+    else this.clockWidget.hide();
+    this.root.classList.toggle('has-clock', visible);
+  }
+
+  setClockTime(minutes: number): void {
+    this.clockWidget.setTime(minutes);
+  }
+
+  setClockHint(text: string | null): void {
+    this.clockWidget.setHint(text);
+  }
+
+  setClockUrgent(urgent: boolean): void {
+    this.clockWidget.setUrgent(urgent);
+  }
+
+  get clockVisible(): boolean {
+    return this.clockWidget.isVisible;
+  }
+
+  /** Табло матча: счёт и подпись (команды, «до 3 голов»). */
+  showMatchHud(note = 'ДО 3 ГОЛОВ'): void {
+    this.matchNoteEl.textContent = note;
+    this.matchHud.classList.add('is-visible');
+  }
+
+  hideMatchHud(): void {
+    this.matchHud.classList.remove('is-visible', 'is-goal');
+  }
+
+  setMatchScore(home: number, away: number, note?: string): void {
+    this.matchScoreEl.textContent = `${home} : ${away}`;
+    if (note !== undefined) this.matchNoteEl.textContent = note;
+  }
+
+  /** Вспышка табло на голе. */
+  flashMatchGoal(): void {
+    this.matchHud.classList.remove('is-goal');
+    // Перезапуск анимации: без reflow класс не сработает второй раз
+    void this.matchHud.offsetWidth;
+    this.matchHud.classList.add('is-goal');
+  }
+
+  // ——— Катсцена конца дня (задача 22) ————————————————————————
+
+  showCutscene(): void {
+    this.cutscene.classList.add('is-visible');
+    // Реплики, подсказки и HUD в катсцене не нужны
+    this.setHint(null);
+    this.hideMissionHud();
+  }
+
+  hideCutscene(): void {
+    this.cutscene.classList.remove('is-visible');
+    this.setCutsceneCaption(null);
+    this.setCutsceneTitle(null, null);
+  }
+
+  setCutsceneCaption(text: string | null): void {
+    if (text === null) {
+      this.cutsceneCaption.classList.remove('is-visible');
+      this.cutsceneCaption.textContent = '';
+      return;
+    }
+    this.cutsceneCaption.textContent = text;
+    this.cutsceneCaption.classList.add('is-visible');
+  }
+
+  setCutsceneTitle(title: string | null, sub: string | null): void {
+    if (title === null) {
+      this.cutsceneTitle.classList.remove('is-visible');
+      this.cutsceneTitle.textContent = '';
+      return;
+    }
+    this.cutsceneTitle.textContent = title;
+    if (sub) this.cutsceneTitle.append(el('span', { className: 'cutscene__sub', text: sub }));
+    this.cutsceneTitle.classList.add('is-visible');
   }
 
   // ——— HUD миссии (задача 7) —————————————————————————————————

@@ -40,4 +40,16 @@ export interface GameEventMap {
   'voice:ended': { id: string };
   /** Текущее музыкальное настроение — для отладки и интерфейса. */
   'music:mood': { mood: MusicMood };
+  /** Задача 22: игровое время. Тикает раз в игровую минуту. */
+  'clock:tick': { minutes: number; label: string };
+  /** Матч: назначен (в какое время), начался, гол, свисток, конец. */
+  'match:scheduled': { at: number; label: string };
+  'match:ready': { minutes: number };
+  'match:started': { home: number; away: number };
+  'match:goal': { home: number; away: number; byHome: boolean; scorer?: 'hero' | 'npc' };
+  'match:finished': { home: number; away: number };
+  /** Уличный NPC поздоровался (для субтитров и статистики). */
+  'npc:greeted': { id: string; text: string };
+  /** Катсцена конца дня: номер кадра и его подпись. */
+  'cutscene:shot': { index: number; caption: string };
 }
