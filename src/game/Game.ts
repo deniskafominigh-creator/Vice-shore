@@ -766,6 +766,12 @@ export class Game {
     this.clock.setTime(CLOCK.startHour, CLOCK.startMinute);
     this.clock.start();
     this.ui.setClockTime(this.clock.totalMinutes);
+    // Расписание нового дня начинается заново: без этого свисток 19:00
+    // срабатывает один раз в жизни, и во второй день матча просто нет.
+    this.matchStarted = false;
+    this.matchScheduled = false;
+    this.matchPlayed = false;
+    this.cutsceneAt = -1;
     this.player.spawn(0.7, 8.4, island, 0);
     character.group.position.copy(this.player.position);
     // Поворот ставим целиком (x = z = 0): после катсцены герой лежал на спине,
