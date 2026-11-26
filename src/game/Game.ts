@@ -241,6 +241,8 @@ export class Game {
 
   async pause(): Promise<void> {
     if (this.machine.current !== 'playing' || this.machine.isBusy) return;
+    this.kickCharging = false;
+    this.ui.setKickCharge(null);
     await this.machine.change('paused');
   }
 
@@ -316,7 +318,14 @@ export class Game {
       parent: island.group,
       stadium: island.stadium,
       collisions: island.collisions,
-      groundHeightAt: (x, z) => island.groundHeightAt(x, z),
+      // Поле — плоскость на 5 см выше плато (иначе мерцает с кромкой), и мяч
+      // должен катиться по ней, а не тонуть в газоне.
+      groundHeightAt: (x, z) => {
+        const onPitch =
+          Math.abs(x - STADIUM.centerX) <= STADIUM.pitchWidth / 2 &&
+          Math.abs(z - STADIUM.centerZ) <= STADIUM.pitchDepth / 2;
+        return island.groundHeightAt(x, z) + (onPitch ? 0.05 : 0);
+      },
       onGoal: (home, away) => {
         island.stadium.scoreboard.setScore(home, away);
         // 0:0 — это сброс перед матчем, а не гол.
@@ -351,6 +360,8 @@ export class Game {
       strafe: this.input.axis('KeyA', 'KeyD'),
       run: this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight'),
     };
+    this.player.update(dt, intent, this.thirdPersonCamera.yaw, island);
+
     // Space у мяча — зарядка удара, в остальных случаях — прыжок. Одна кнопка
     // на оба действия: рядом с мячом прыгать нечем, зато удар всегда под рукой.
     const me = {
@@ -362,13 +373,10 @@ export class Game {
       radius: this.player.radius,
     };
     const football = this.football;
-    const spacePressed = this.input.wasPressed('Space');
-    if (spacePressed) {
+    if (this.input.wasPressed('Space')) {
       if (football && !this.player.isAirborne && football.startCharge(me)) this.kickCharging = true;
       else this.player.jump();
     }
-
-    this.player.update(dt, intent, this.thirdPersonCamera.yaw, island);
 
     if (football) {
       // Отпустили Space — удар накопленной силы.
