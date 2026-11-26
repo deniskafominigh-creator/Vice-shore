@@ -1,5 +1,7 @@
 /** Проверка реплик героя (задача 17): 3 фразы «просто стою», 3 фразы «забил гол»,
  *  у каждой фразы есть место, а «краска сохнет» и «кольцо белое» не звучат на стадионе. */
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import dialogues from '../../src/data/dialogues.json';
 
 interface Line {
@@ -78,9 +80,78 @@ const fresh = lines.filter((line) => !OLD_IDS.has(line.id));
 console.log(`новых фраз: ${fresh.length}`);
 if (fresh.length !== 10) fail(`новых фраз должно быть 10 — сейчас ${fresh.length}`);
 
-// ——— озвучка: у фраз со звуком файл должен лежать в списке (проверяется сборкой) ———
+// ——— озвучка: файл на месте и это настоящий mp3 с внятной длительностью ———
+// Путь от корня проекта: офлайн-раннер собирает ts во временный файл, import.meta.url врёт.
+const VOICE_DIR = join(process.cwd(), 'src/assets/voice');
+const BR_V1_L3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
+const BR_V2_L3 = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0];
+const SR = [44100, 48000, 32000];
+
+/** Длительность по кадрам: без декодера, но структуру и тишину по нулевым кадрам ловит. */
+const mp3Duration = (data: Buffer): number | null => {
+  let offset = 0;
+  if (data.slice(0, 3).toString('latin1') === 'ID3') {
+    const size = ((data[6] & 0x7f) << 21) | ((data[7] & 0x7f) << 14) | ((data[8] & 0x7f) << 7) | (data[9] & 0x7f);
+    offset = 10 + size;
+  }
+  let seconds = 0;
+  let frames = 0;
+  while (offset + 4 <= data.length) {
+    if (data[offset] !== 0xff || (data[offset + 1] & 0xe0) !== 0xe0) {
+      offset += 1;
+      continue;
+    }
+    const version = (data[offset + 1] >> 3) & 3; // 3 = MPEG1, 2 = MPEG2, 0 = MPEG2.5
+    const layer = (data[offset + 1] >> 1) & 3; // 1 = Layer III
+    if (layer !== 1 || version === 1) {
+      offset += 1;
+      continue;
+    }
+    const table = version === 3 ? BR_V1_L3 : BR_V2_L3;
+    const bitrate = table[(data[offset + 2] >> 4) & 0xf] * 1000;
+    const sampleRate = SR[(data[offset + 2] >> 2) & 3] / (version === 3 ? 1 : version === 2 ? 2 : 4);
+    const padding = (data[offset + 2] >> 1) & 1;
+    if (!bitrate || !sampleRate) {
+      offset += 1;
+      continue;
+    }
+    const samples = version === 3 ? 1152 : 576;
+    const length = Math.floor(((samples / 8) * bitrate) / sampleRate) + padding;
+    if (length < 24) {
+      offset += 1;
+      continue;
+    }
+    seconds += samples / sampleRate;
+    frames += 1;
+    offset += length;
+  }
+  return frames > 2 ? seconds : null;
+};
+
 const voiced = lines.filter((line) => line.file.trim().length > 0);
-console.log(`всего фраз: ${lines.length}, со звуком: ${voiced.length}, без звука (субтитры): ${lines.length - voiced.length}`);
+let totalSeconds = 0;
+for (const line of voiced) {
+  const path = join(VOICE_DIR, line.file);
+  if (!existsSync(path)) {
+    fail(`«${line.id}»: нет файла ${line.file}`);
+    continue;
+  }
+  const seconds = mp3Duration(readFileSync(path));
+  if (seconds === null) {
+    fail(`«${line.id}»: ${line.file} — не читается как mp3`);
+    continue;
+  }
+  totalSeconds += seconds;
+  if (seconds < 0.6) fail(`«${line.id}»: слишком коротко — ${seconds.toFixed(2)} с`);
+  if (seconds > 8) fail(`«${line.id}»: слишком долго — ${seconds.toFixed(2)} с`);
+}
+const used = new Set(lines.map((line) => line.file).filter((file) => file.length > 0));
+const orphans = readdirSync(VOICE_DIR).filter((file) => file.endsWith('.mp3') && !used.has(file));
+if (orphans.length > 0) fail(`лишние mp3 без фраз: ${orphans.join(', ')}`);
+console.log(
+  `всего фраз: ${lines.length}, со звуком: ${voiced.length} (${totalSeconds.toFixed(1)} с), ` +
+    `без звука (субтитры): ${lines.length - voiced.length}`,
+);
 
 // ——— триггеры уникальны там, где должен быть один вариант ———
 for (const line of lines) {

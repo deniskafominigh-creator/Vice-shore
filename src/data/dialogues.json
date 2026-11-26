@@ -7,7 +7,7 @@
       "trigger": "quest:started:mission_01",
       "priority": 50,
       "cooldown": 600,
-      "file": "voice/start_mission1.mp3",
+      "file": "start_mission1.mp3",
       "place": "villa"
     },
     {
@@ -16,7 +16,7 @@
       "trigger": "item:pickup:roller",
       "priority": 30,
       "cooldown": 20,
-      "file": "voice/take_roller.mp3",
+      "file": "take_roller.mp3",
       "place": "villa"
     },
     {
@@ -25,7 +25,7 @@
       "trigger": "item:pickup:paint",
       "priority": 30,
       "cooldown": 20,
-      "file": "voice/take_paint.mp3",
+      "file": "take_paint.mp3",
       "place": "villa"
     },
     {
@@ -34,7 +34,7 @@
       "trigger": "paint:started",
       "priority": 40,
       "cooldown": 30,
-      "file": "voice/paint_start.mp3",
+      "file": "paint_start.mp3",
       "place": "villa"
     },
     {
@@ -43,7 +43,7 @@
       "trigger": "paint:dry",
       "priority": 35,
       "cooldown": 25,
-      "file": "voice/paint_dry.mp3",
+      "file": "paint_dry.mp3",
       "place": "villa"
     },
     {
@@ -52,7 +52,7 @@
       "trigger": "paint:progress:half",
       "priority": 40,
       "cooldown": 600,
-      "file": "voice/paint_half.mp3",
+      "file": "paint_half.mp3",
       "place": "villa"
     },
     {
@@ -61,7 +61,7 @@
       "trigger": "paint:completed",
       "priority": 50,
       "cooldown": 600,
-      "file": "voice/wall_done.mp3",
+      "file": "wall_done.mp3",
       "place": "villa"
     },
     {
@@ -70,7 +70,7 @@
       "trigger": "quest:started:mission_02",
       "priority": 50,
       "cooldown": 600,
-      "file": "voice/to_court.mp3",
+      "file": "to_court.mp3",
       "place": "any"
     },
     {
@@ -79,7 +79,7 @@
       "trigger": "item:pickup:ball",
       "priority": 30,
       "cooldown": 20,
-      "file": "voice/take_ball.mp3",
+      "file": "take_ball.mp3",
       "place": "any"
     },
     {
@@ -88,7 +88,7 @@
       "trigger": "ball:throw",
       "priority": 25,
       "cooldown": 18,
-      "file": "voice/throw.mp3",
+      "file": "throw.mp3",
       "place": "any"
     },
     {
@@ -97,7 +97,7 @@
       "trigger": "ball:scored",
       "priority": 60,
       "cooldown": 6,
-      "file": "voice/goal.mp3",
+      "file": "goal.mp3",
       "place": "any"
     },
     {
@@ -106,7 +106,7 @@
       "trigger": "ball:missed",
       "priority": 45,
       "cooldown": 8,
-      "file": "voice/miss.mp3",
+      "file": "miss.mp3",
       "place": "any"
     },
     {
@@ -115,7 +115,7 @@
       "trigger": "ball:scored:final",
       "priority": 65,
       "cooldown": 600,
-      "file": "voice/goal_second.mp3",
+      "file": "goal_second.mp3",
       "place": "any"
     },
     {
@@ -124,7 +124,7 @@
       "trigger": "quest:completed:mission_02",
       "priority": 70,
       "cooldown": 600,
-      "file": "voice/win.mp3",
+      "file": "win.mp3",
       "place": "any"
     },
     {
@@ -133,7 +133,7 @@
       "trigger": "idle",
       "priority": 10,
       "cooldown": 45,
-      "file": "",
+      "file": "idle_stand_1.mp3",
       "place": "any"
     },
     {
@@ -142,7 +142,7 @@
       "trigger": "idle",
       "priority": 10,
       "cooldown": 45,
-      "file": "",
+      "file": "idle_stand_2.mp3",
       "place": "any"
     },
     {
@@ -151,7 +151,7 @@
       "trigger": "idle",
       "priority": 10,
       "cooldown": 45,
-      "file": "",
+      "file": "idle_stand_3.mp3",
       "place": "any"
     },
     {
@@ -160,7 +160,7 @@
       "trigger": "football:goal",
       "priority": 60,
       "cooldown": 8,
-      "file": "",
+      "file": "football_goal_1.mp3",
       "place": "stadium"
     },
     {
@@ -169,7 +169,7 @@
       "trigger": "football:goal",
       "priority": 60,
       "cooldown": 8,
-      "file": "",
+      "file": "football_goal_2.mp3",
       "place": "stadium"
     },
     {
@@ -178,7 +178,7 @@
       "trigger": "football:goal",
       "priority": 60,
       "cooldown": 8,
-      "file": "",
+      "file": "football_goal_3.mp3",
       "place": "stadium"
     },
     {
@@ -187,7 +187,7 @@
       "trigger": "stadium:entered",
       "priority": 45,
       "cooldown": 600,
-      "file": "",
+      "file": "stadium_enter.mp3",
       "place": "stadium"
     },
     {
@@ -196,7 +196,7 @@
       "trigger": "stadium:ticket",
       "priority": 40,
       "cooldown": 600,
-      "file": "",
+      "file": "stadium_ticket.mp3",
       "place": "stadium"
     },
     {
@@ -205,16 +205,16 @@
       "trigger": "football:charge",
       "priority": 20,
       "cooldown": 25,
-      "file": "",
+      "file": "football_charge.mp3",
       "place": "stadium"
     },
     {
       "id": "football_kick",
-      "text": "Пошла!",
+      "text": "Пошла! Пошла, родимая!",
       "trigger": "football:kick",
       "priority": 25,
       "cooldown": 20,
-      "file": "",
+      "file": "football_kick.mp3",
       "place": "stadium"
     }
   ]
