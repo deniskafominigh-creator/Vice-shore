@@ -559,7 +559,9 @@ export class Game {
     }
 
     character.group.position.copy(this.player.position);
-    character.group.rotation.y = this.player.yaw;
+    // Поворот ставим целиком: катсцена кладёт героя на спину (x = π/2), и если
+    // после неё менять только .y, герой «входит в новый день лёжа».
+    character.group.rotation.set(0, this.player.yaw, 0);
     character.setLocomotion(this.player.speed01, this.player.phase);
     // Прыжок: клипа в модели нет — поза строится по фазе полёта (задача 16).
     character.setJump(this.player.jumpPhase01, this.player.isAirborne);
@@ -766,7 +768,9 @@ export class Game {
     this.ui.setClockTime(this.clock.totalMinutes);
     this.player.spawn(0.7, 8.4, island, 0);
     character.group.position.copy(this.player.position);
-    character.group.rotation.y = this.player.yaw;
+    // Поворот ставим целиком (x = z = 0): после катсцены герой лежал на спине,
+    // и одного rotation.y не хватало — новый день начинался «лёжа».
+    character.group.rotation.set(0, this.player.yaw, 0);
     this.thirdPersonCamera.snapTo(this.player.position, this.player.yaw, island.collisions);
     this.match?.clear();
     this.ui.setClockHint(null);

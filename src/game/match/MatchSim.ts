@@ -412,29 +412,34 @@ export class MatchSim {
 
   /** Решения всех игроков: кто бежит к мячу, кто держит зону. */
   private decide(dt: number, ball: MatchBall): void {
-    const pursuers = new Map<TeamId, SimPlayer>();
+    // Прессинг: один бежит на мяч всегда, второй подключается, когда мяч
+    // у соперника. С одним прессингующим герой просто уходил от защитника —
+    // это и читалось как «в футболе нет сопротивления».
+    const pursuers = new Map<TeamId, SimPlayer[]>();
+    const owner = this.possession;
     for (const team of ['home', 'away'] as const) {
-      let best: SimPlayer | null = null;
-      let bestDistance = Infinity;
+      const candidates: SimPlayer[] = [];
       for (const player of this.players) {
         if (player.team !== team || player.human) continue;
         // Вратарь выходит из ворот, только если мяч в своей штрафной
         if (player.role === 'gk' && !this.ballInOwnBox(player, ball)) continue;
-        const distance = Math.hypot(player.x - ball.x, player.z - ball.z);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          best = player;
-        }
+        candidates.push(player);
       }
-      if (best) pursuers.set(team, best);
+      candidates.sort(
+        (a, b) =>
+          Math.hypot(a.x - ball.x, a.z - ball.z) - Math.hypot(b.x - ball.x, b.z - ball.z),
+      );
+      const pressure = owner && owner.team !== team ? 2 : 1;
+      pursuers.set(team, candidates.slice(0, pressure));
     }
 
     for (const player of this.players) {
       if (player.human) continue;
       player.decisionTimer -= dt;
       player.hasBall = this.possession?.id === player.id;
-      const pursuer = pursuers.get(player.team);
-      const isPursuer = pursuer?.id === player.id;
+      const pressing = pursuers.get(player.team) ?? [];
+      const pursuerIndex = pressing.findIndex((mate) => mate.id === player.id);
+      const isPursuer = pursuerIndex >= 0;
 
       if (player.decisionTimer > 0) continue;
       player.decisionTimer = player.reaction * (0.85 + this.random() * 0.4);
@@ -463,9 +468,11 @@ export class MatchSim {
       }
 
       if (isPursuer) {
-        // Прогноз мяча: бежим туда, где он будет через 0,25 с
-        player.targetX = ball.x + ball.vx * 0.25;
-        player.targetZ = ball.z + ball.vz * 0.25;
+        // Первый бежит на мяч, второй отрезает путь к воротам: прогноз дальше,
+        // поэтому он встречает ведущего, а не дышит ему в спину.
+        const lead = pursuerIndex === 0 ? 0.25 : 0.55;
+        player.targetX = ball.x + ball.vx * lead;
+        player.targetZ = ball.z + ball.vz * lead;
         continue;
       }
 

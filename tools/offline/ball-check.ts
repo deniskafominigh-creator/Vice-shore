@@ -106,9 +106,24 @@ ball.releaseCharge(kicker);
 const startZ = ball.position.z;
 step(0.6);
 const rolled = Math.abs(ball.position.z - startZ);
-step(14);
 check(rolled > 2, `мяч катится: ${rolled.toFixed(1)} м за 0,6 с`);
-check(ball.speed < 0.2, `мяч останавливается трением: ${ball.speed.toFixed(2)} м/с`);
+
+// Сопротивление газона: мяч не «едет по льду», а останавливается сам.
+// Полный удар уходил бы 35+ м за 3,6 с — это и заметил заказчик.
+ball.reset();
+ball.startCharge(kicker);
+step(0.9);
+ball.releaseCharge(kicker);
+const kickZ = ball.position.z;
+let stopAfter = 0;
+for (let t = 0; t < 10; t += 1 / 60) {
+  ball.update(1 / 60, null);
+  stopAfter = t;
+  if (ball.speed < 0.05) break;
+}
+const travel = Math.abs(ball.position.z - kickZ);
+check(travel > 12 && travel < 32, `полный удар уходит на ${travel.toFixed(1)} м — поле 30 м, ворота достаются`);
+check(stopAfter < 5, `мяч останавливается за ${stopAfter.toFixed(1)} с, а не катится вечно`);
 
 // ——— 4. мяч отскакивает от земли ———
 ball.reset();
@@ -154,12 +169,17 @@ step(2);
 check(Math.abs(ball.position.x) < 0.2 && Math.abs(ball.position.z - STADIUM.centerZ) < 0.2, 'после гола мяч вернулся на центр');
 
 // ——— 7. ведение мяча ———
+// Герой бежит с мячом: мяч должен катиться впереди него, а не отскакивать
+// на метр и вставать (это чувствовалось как «мяч не слушается»).
 ball.reset();
-const runner = player(0, STADIUM.centerZ + 0.6, 0, 3.4);
-for (let i = 0; i < 40; i += 1) {
-  ball.update(1 / 60, runner);
+let heroZ = STADIUM.centerZ + 0.6;
+let lead = 0;
+for (let i = 0; i < 90; i += 1) {
+  ball.update(1 / 60, player(0, heroZ, 0, 3.4));
+  heroZ -= 3.4 / 60;
+  lead = heroZ - ball.position.z;
 }
-check(ball.position.z < STADIUM.centerZ - 0.2, `ведение: мяч ушёл вперёд на ${(STADIUM.centerZ - ball.position.z).toFixed(2)} м`);
+check(lead > 0.25 && lead < 1.8, `ведение: мяч держится в ${lead.toFixed(2)} м впереди героя`);
 check(ball.speed > 1, `мяч катится за героем: ${ball.speed.toFixed(2)} м/с`);
 
 // ——— 8. дальность удара ———

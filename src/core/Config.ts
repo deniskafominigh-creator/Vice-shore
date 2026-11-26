@@ -5,7 +5,7 @@ export const GAME = {
   /** Название игры меняется ТОЛЬКО здесь (см. GOAL.md §11, п.4). */
   title: 'VICE SHORE',
   subtitle: 'Вилла у моря',
-  version: '0.1.0',
+  version: '0.15.0',
   /** Ключи localStorage — с версией, чтобы миграции были возможны. */
   settingsKey: 'vice-shore.settings.v1',
   saveKey: 'vice-shore.save.v1',

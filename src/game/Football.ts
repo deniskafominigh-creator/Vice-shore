@@ -33,18 +33,29 @@ export interface FootballPlayer {
 }
 
 const GRAVITY = 16;
-/** Трение качения. Было 2,4 — мяч вставал через 6,5 м, и с 32-метрового поля
- *  в ворота было не попасть ни герою, ни ИИ (задача 22). 0,6 даёт честные
- *  ~28 м хода при полном ударе: с центра поля мяч доходит до ворот. */
-const ROLL_FRICTION = 0.45;
-const AIR_FRICTION = 0.18;
+/**
+ * Сопротивление качению (задача 22, сборка v15).
+ *
+ *  Сначала здесь было только вязкое трение 2,4 — мяч вставал через 6,5 м и с
+ *  поля в ворота не долетал. Поставили 0,45 — и мяч поехал как по льду:
+ *  заказчик сказал «сопротивления в футболе нет».
+ *  Настоящий газон гасит мяч двумя силами сразу: вязкой (зависит от скорости)
+ *  и постоянной (трение о траву). Вязкая одна не даёт одновременно дальний удар
+ *  и быструю остановку — вместе получается удар на ~28 м и остановка за 3–4 с.
+ */
+const ROLL_FRICTION = 0.65;
+/** Постоянное трение о газон, м/с²: мяч именно останавливается, а не «умирает». */
+const ROLL_RESIST = 4.2;
+/** Сопротивление воздуха: мяч в полёте заметно тормозит, а не летит как в вакууме. */
+const AIR_FRICTION = 0.3;
 const BOUNCE = 0.42;
 /** Дальность удара: ближе этого расстояния Space бьёт по мячу, а не прыгает. */
 export const KICK_RANGE = 1.35;
 /** Сколько секунд копится полная сила удара. */
 const CHARGE_FULL_TIME = 0.9;
 const MIN_KICK = 6;
-const MAX_KICK = 23;
+/** Полный удар: 21 м/с при сопротивлении газона даёт ~28 м хода. */
+const MAX_KICK = 21;
 const KICK_LIFT = 0.32;
 
 export class Football {
@@ -208,9 +219,9 @@ export class Football {
         const forwardX = -Math.sin(player.yaw);
         const forwardZ = -Math.cos(player.yaw);
         // Мяч должен уходить вперёд, а не отскакивать в сторону.
-        // Трение стало меньше (мяч катится дальше), поэтому толчок мягче:
-        // 1,5 м/с уводят мяч на ~3 м вперёд — это ведение, а не пинок.
-        const push = 0.9 + player.speed * 0.12;
+        // Газон теперь тормозит по-настоящему, поэтому толчок — доля скорости
+        // героя: мяч катится вместе с ним и не отскакивает на три метра.
+        const push = Math.max(0.9, player.speed * 0.92);
         this.velocity.x = forwardX * push + (dx / distance) * 0.6;
         this.velocity.z = forwardZ * push + (dz / distance) * 0.6;
         this.velocity.y = Math.max(this.velocity.y, 0.2);
@@ -226,6 +237,18 @@ export class Football {
     const damping = Math.max(0, 1 - friction * dt);
     this.velocity.x *= damping;
     this.velocity.z *= damping;
+
+    // Качение по газону: постоянное сопротивление. Без него мяч катится
+    // как по льду и не останавливается — «сопротивления нет».
+    if (onGround) {
+      const flat = Math.hypot(this.velocity.x, this.velocity.z);
+      if (flat > 0) {
+        const drop = Math.min(flat, ROLL_RESIST * dt);
+        const keep = (flat - drop) / flat;
+        this.velocity.x *= keep;
+        this.velocity.z *= keep;
+      }
+    }
 
     const nextX = this.position.x + this.velocity.x * dt;
     const nextZ = this.position.z + this.velocity.z * dt;

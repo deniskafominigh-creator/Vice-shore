@@ -175,6 +175,10 @@ export class EndOfDay {
     while (this.shots.length > 0 && this.time >= this.shots[0].at) {
       const shot = this.shots.shift();
       shot?.run();
+      // Последний кадр сцены мог закончиться прямо здесь: герой уже в стойке,
+      // и трогать его дальше нельзя — иначе он остаётся лежать на диване,
+      // а новый день начинается «лёжа» (баг из игры заказчика).
+      if (!this.active) return;
     }
 
     // Ложимся: тело плавно уходит из стойки в положение «на спине вдоль дивана»
@@ -212,7 +216,11 @@ export class EndOfDay {
   private restoreHero(): void {
     const { hero } = this.deps;
     hero.position.copy(this.basePosition);
+    // Восстанавливаем поворот целиком — вместе с порядком осей: во время сцены
+    // он был 'YXZ' (лежим на спине), и одного copy(x, y, z) мало, если порядок
+    // остался «лежачим».
     hero.rotation.copy(this.baseRotation);
+    hero.rotation.order = this.baseRotation.order;
   }
 
   dispose(): void {
