@@ -208,7 +208,9 @@ export class Football {
         const forwardX = -Math.sin(player.yaw);
         const forwardZ = -Math.cos(player.yaw);
         // Мяч должен уходить вперёд, а не отскакивать в сторону.
-        const push = 1.6 + player.speed * 1.15;
+        // Трение стало меньше (мяч катится дальше), поэтому толчок мягче:
+        // 1,5 м/с уводят мяч на ~3 м вперёд — это ведение, а не пинок.
+        const push = 0.9 + player.speed * 0.12;
         this.velocity.x = forwardX * push + (dx / distance) * 0.6;
         this.velocity.z = forwardZ * push + (dz / distance) * 0.6;
         this.velocity.y = Math.max(this.velocity.y, 0.2);
