@@ -153,6 +153,7 @@ export class Game {
     this.renderer.info.autoReset = false;
 
     this.pipeline = new RenderPipeline(this.renderer, this.settings.get('quality'));
+    this.pipeline.setCinematicBlur(this.settings.get('depthOfField'));
     this.pipeline.setSize(window.innerWidth, window.innerHeight);
 
     // ——— камеры ————————————————————————————————————————————————
@@ -946,6 +947,10 @@ export class Game {
     this.unsubscribers.push(
       this.bus.on('settings:changed', (payload) => {
         if (payload.key === 'quality') this.applyQuality(payload.value as QualityLevel);
+        if (payload.key === 'depthOfField') {
+          this.pipeline.setCinematicBlur(payload.value as boolean);
+          this.pipeline.setSize(window.innerWidth, window.innerHeight);
+        }
         // Субтитры включили/выключили посреди реплики (задача 9)
         if (payload.key === 'subtitles') this.dialogues?.refreshSubtitles();
         // Задача 11: смена схемы управления и полноэкранный режим

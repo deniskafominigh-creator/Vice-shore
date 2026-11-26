@@ -124,6 +124,13 @@ export class RenderPipeline {
     return true;
   }
 
+  /** Настройка игрока: глубина резкости вкл/выкл (пересобирает цепочку). */
+  setCinematicBlur(enabled: boolean): void {
+    if (this.cinematicBlur === enabled) return;
+    this.cinematicBlur = enabled;
+    this.build();
+  }
+
   /** Снять глубину резкости (слабый GPU). Виньетка и зерно остаются. */
   disableCinematicBlur(): boolean {
     if (!this.bokehPass) return false;
@@ -166,8 +173,14 @@ export class RenderPipeline {
       this.ssaoPass.camera = camera;
     }
     if (this.bokehPass) {
-      // BokehPass рендерит глубину своей камерой — синхронизируем так же.
+      // КРИТИЧНО: BokehPass рендерит глубину В СВОЮ сцену. Если оставить там
+      // пустую заглушку из конструктора, буфер глубины очищается в 1.0 — весь
+      // кадр читается как «бесконечно далеко» и размывается целиком (именно это
+      // и было на высоком качестве: «ничего не видно»).
+      this.bokehPass.scene = scene;
       this.bokehPass.camera = camera;
+      const aspect = (this.bokehPass.uniforms as Record<string, { value: number }>).aspect;
+      if (aspect && camera instanceof THREE.PerspectiveCamera) aspect.value = camera.aspect;
     }
     composer.render();
   }
@@ -188,7 +201,8 @@ export class RenderPipeline {
 
   private build(): void {
     this.dispose();
-    this.cinematicBlur = true;
+    // `cinematicBlur` здесь НЕ сбрасываем: это и настройка игрока, и след
+    // автозащиты по FPS. Сброс возвращал боке после смены качества.
     const preset = QUALITY_PRESETS[this.quality];
     if (!preset.bloom && !preset.ssao && !preset.smaa) {
       this.ambientOcclusion = true;
@@ -217,9 +231,9 @@ export class RenderPipeline {
 
     if (preset.bokeh && this.cinematicBlur) {
       // Диафрагма маленькая: размывается только дальний план, герой остаётся резким.
-      // aperture подобран под метры: всё, что дальше 20 м от фокуса, уходит в
-      // полное боке (0.008 UV), герой остаётся резким.
-      const pass = new BokehPass(scene, camera, { focus: 6, aperture: 0.00022, maxblur: 0.008 });
+      // Мягкая глубина резкости: максимум боке — 0,004 по UV (≈3 px на 1080p),
+      // то есть дальний план «дышит», а не превращается в мыло.
+      const pass = new BokehPass(scene, camera, { focus: 6, aperture: 0.00016, maxblur: 0.004 });
       this.bokehPass = pass;
       composer.addPass(pass);
     }

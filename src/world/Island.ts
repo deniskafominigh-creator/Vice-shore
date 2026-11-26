@@ -12,6 +12,7 @@ import { buildVegetation, type VegetationResult } from './island/Vegetation';
 import { buildRenovation, type RenovationResult } from './island/Renovation';
 import { buildTown, type TownResult } from './island/Town';
 import { buildStadium, type StadiumResult } from './island/Stadium';
+import { buildDetails, type DetailsResult } from './island/Details';
 import { buildGrass, type GrassResult } from './island/GrassField';
 import { mergeStaticMeshes } from './island/mergeStatic';
 import type { AuditNode } from './SceneAudit';
@@ -49,6 +50,7 @@ export class Island {
   readonly stadium: StadiumResult;
   /** Поле травы: один InstancedMesh с ветром (задача 13). */
   readonly grass: GrassResult;
+  readonly details: DetailsResult;
   /** Всего предметов декорации на острове — для отчёта о детализации. */
   get decorationCount(): number {
     return this.town.objectCount + this.grass.instances;
@@ -84,8 +86,13 @@ export class Island {
     this.town = buildTown(this.materials, this.collisions);
     // Стадион строится до травы: его чаша, площадь и аллея тоже не засеиваются.
     this.stadium = buildStadium(this.materials, this.collisions);
+    // Живые детали (задача 21) — до травы: их площадки тоже не засеиваются
+    this.details = buildDetails(this.materials);
     // Трава сеется после домов: занятые участки, дорожки и улица остаются чистыми
-    this.grass = buildGrass([...this.town.occupied, ...this.stadium.clearings], 9000);
+    this.grass = buildGrass(
+      [...this.town.occupied, ...this.stadium.clearings, ...this.details.occupied],
+      9000,
+    );
 
     this.group.add(
       ground,
@@ -99,6 +106,7 @@ export class Island {
       this.town.group,
       this.stadium.group,
       this.grass.group,
+      this.details.group,
       distantShore,
     );
 
@@ -170,6 +178,7 @@ export class Island {
   update(elapsed: number, eye?: THREE.Vector3): void {
     this.vegetation.update(elapsed);
     this.grass.update(elapsed, eye);
+    this.details.update(elapsed, eye);
   }
 
   /** Сколько треугольников в сцене острова — для отчёта о производительности. */
@@ -220,6 +229,7 @@ export class Island {
     for (const geometry of new Set(this.geometries)) geometry.dispose();
     this.renovation.wall.dispose();
     this.grass.dispose();
+    this.details.dispose();
     this.town.dispose();
     this.materials.dispose();
     this.group.clear();

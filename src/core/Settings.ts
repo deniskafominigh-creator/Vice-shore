@@ -36,6 +36,9 @@ export interface GameSettings {
   showControlHints: boolean;
   showActionPrompts: boolean;
   showMissionHud: boolean;
+  /** Глубина резкости (BokehPass). По умолчанию включена, но её можно снять:
+   *  на слабом экране размытый дальний план читается как «мыло». */
+  depthOfField: boolean;
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -57,6 +60,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   showControlHints: true,
   showActionPrompts: true,
   showMissionHud: true,
+  depthOfField: true,
 };
 
 /** Проверка и приведение значений: испорченный localStorage не должен ломать запуск. */
@@ -104,6 +108,8 @@ function sanitize(raw: Partial<Record<keyof GameSettings, unknown>>): GameSettin
       typeof raw.showActionPrompts === 'boolean' ? raw.showActionPrompts : DEFAULT_SETTINGS.showActionPrompts,
     showMissionHud:
       typeof raw.showMissionHud === 'boolean' ? raw.showMissionHud : DEFAULT_SETTINGS.showMissionHud,
+    depthOfField:
+      typeof raw.depthOfField === 'boolean' ? raw.depthOfField : DEFAULT_SETTINGS.depthOfField,
   };
 }
 

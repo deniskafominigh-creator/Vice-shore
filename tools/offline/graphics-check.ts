@@ -279,3 +279,16 @@ console.log(
 );
 if (tuftTriangles > 4) fail(`пучок травы стоит ${tuftTriangles} треугольника — это не cross-billboard`);
 fullGrass.dispose();
+
+// ——— 9. глубина резкости: сцена глубины и настройка игрока ————————
+const pipelineSource = readFileSync('src/game/RenderPipeline.ts', 'utf8');
+if (!pipelineSource.includes('this.bokehPass.scene = scene')) {
+  fail('BokehPass не получает сцену: глубина считается по пустой заглушке, кадр размывается целиком');
+}
+if (!pipelineSource.includes('setCinematicBlur')) fail('нет переключателя глубины резкости');
+if (pipelineSource.includes('this.cinematicBlur = true;\n    const preset')) {
+  fail('build() сбрасывает cinematicBlur: боке вернётся после смены качества');
+}
+const settingsSource = readFileSync('src/core/Settings.ts', 'utf8');
+if (!settingsSource.includes('depthOfField: true')) fail('глубина резкости не включена в настройках по умолчанию');
+console.log('глубина резкости: сцена глубины синхронизируется, есть переключатель в настройках');

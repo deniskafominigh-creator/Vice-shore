@@ -103,6 +103,18 @@ export class SettingsPanel extends Panel {
       this.buildSwitch(() => this.settings.get('invertY'), (value) => this.settings.set('invertY', value)),
     );
 
+    // ——— графика (задача 21): киноэффекты можно снять —————————————
+    this.body.append(el('div', { className: 'panel__group', text: 'Графика' }));
+
+    this.addRow(
+      'Глубина резкости',
+      'Герой в фокусе, дальний план в мягком боке (среднее и высокое качество)',
+      this.buildSwitch(
+        () => this.settings.get('depthOfField'),
+        (value) => this.settings.set('depthOfField', value),
+      ),
+    );
+
     // ——— интерфейс: что показывать поверх игры (задача 12) ——————————
     this.body.append(el('div', { className: 'panel__group', text: 'Интерфейс' }));
 
