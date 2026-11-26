@@ -554,7 +554,16 @@ export interface IslandMaterials {
   dispose(): void;
 }
 
-function standard(texture: Painted, repeat: [number, number], extra: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
+/** Материал поверхности (задача 20): физический, с картой нормалей и
+ *  шероховатости. `MeshPhysicalMaterial` — надмножество стандартного: поверх
+ *  него доступны clearcoat (лак на дереве, полировка камня), sheen (ткань),
+ *  ior/specularIntensity (стекло). Включаем только там, где это видно:
+ *  лишние фичи стоят пиксельных инструкций. */
+function standard(
+  texture: Painted,
+  repeat: [number, number],
+  extra: THREE.MeshPhysicalMaterialParameters = {},
+): THREE.MeshPhysicalMaterial {
   const map = texture.map.clone();
   const normalMap = texture.normalMap.clone();
   const roughnessMap = texture.roughnessMap.clone();
@@ -564,7 +573,16 @@ function standard(texture: Painted, repeat: [number, number], extra: THREE.MeshS
     tex.repeat.set(repeat[0], repeat[1]);
     tex.needsUpdate = true;
   }
-  return new THREE.MeshStandardMaterial({ map, normalMap, roughnessMap, roughness: 1, metalness: 0, ...extra });
+  return new THREE.MeshPhysicalMaterial({
+    map,
+    normalMap,
+    normalScale: new THREE.Vector2(1, 1),
+    roughnessMap,
+    roughness: 1,
+    metalness: 0,
+    envMapIntensity: 0.7,
+    ...extra,
+  });
 }
 
 /** Все материалы острова создаются один раз и переиспользуются. */
@@ -594,13 +612,21 @@ export function createIslandMaterials(): IslandMaterials {
   };
 
   const materials: IslandMaterials = {
-    grass: track(standard(textures.grass, [26, 19])),
-    gravel: track(standard(textures.gravel, [2, 12])),
-    siding: track(standard(textures.siding, [3, 2])),
-    wood: track(standard(textures.wood, [4, 4])),
-    rock: track(standard(textures.rock, [6, 3])),
-    shoreStone: track(standard(textures.rock, [2, 2], { color: PALETTE.shoreStone })),
-    foliage: track(standard(textures.foliage, [2, 2])),
+    grass: track(standard(textures.grass, [26, 19], { roughness: 0.94, envMapIntensity: 0.45 })),
+    gravel: track(standard(textures.gravel, [2, 12], { roughness: 0.92, envMapIntensity: 0.5 })),
+    // Дерево жилое, но не лакированное: матовое, с чуть заметным лаком сверху.
+    siding: track(
+      standard(textures.siding, [3, 2], {
+        roughness: 0.78,
+        clearcoat: 0.14,
+        clearcoatRoughness: 0.55,
+        envMapIntensity: 0.75,
+      }),
+    ),
+    wood: track(standard(textures.wood, [4, 4], { roughness: 0.82, envMapIntensity: 0.6 })),
+    rock: track(standard(textures.rock, [6, 3], { roughness: 0.66, envMapIntensity: 0.6 })),
+    shoreStone: track(standard(textures.rock, [2, 2], { color: PALETTE.shoreStone, roughness: 0.8 })),
+    foliage: track(standard(textures.foliage, [2, 2], { roughness: 0.72, envMapIntensity: 0.85 })),
     court: track(new THREE.MeshStandardMaterial({ map: courtMap, roughness: 0.9, metalness: 0 })),
     frond: track(
       new THREE.MeshStandardMaterial({
@@ -611,41 +637,130 @@ export function createIslandMaterials(): IslandMaterials {
         metalness: 0,
       }),
     ),
-    white: track(new THREE.MeshStandardMaterial({ color: PALETTE.whiteWood, roughness: 0.72, metalness: 0 })),
-    darkRoof: track(new THREE.MeshStandardMaterial({ color: 0x3c3a38, roughness: 0.85, metalness: 0.05 })),
-    glass: track(
-      new THREE.MeshStandardMaterial({
-        color: 0x1d3340,
-        roughness: 0.08,
-        metalness: 0.55,
-        envMapIntensity: 1.6,
+    white: track(
+      new THREE.MeshPhysicalMaterial({
+        color: PALETTE.whiteWood,
+        roughness: 0.7,
+        metalness: 0,
+        clearcoat: 0.18,
+        clearcoatRoughness: 0.5,
+        envMapIntensity: 0.8,
       }),
     ),
-    metal: track(new THREE.MeshStandardMaterial({ color: PALETTE.metal, roughness: 0.45, metalness: 0.8 })),
-    terracotta: track(new THREE.MeshStandardMaterial({ color: PALETTE.terracotta, roughness: 0.85, metalness: 0 })),
-    magenta: track(new THREE.MeshStandardMaterial({ color: PALETTE.bougainvillea, roughness: 0.7, metalness: 0 })),
-    cushion: track(new THREE.MeshStandardMaterial({ color: 0xf0ece2, roughness: 0.95, metalness: 0 })),
+    darkRoof: track(
+      new THREE.MeshPhysicalMaterial({ color: 0x3c3a38, roughness: 0.86, metalness: 0.06, envMapIntensity: 0.6 }),
+    ),
+    // Тёмное стекло витрин: почти зеркало, поэтому в HDR-окружении в нём видно небо.
+    glass: track(
+      new THREE.MeshPhysicalMaterial({
+        color: 0x16262f,
+        roughness: 0.035,
+        metalness: 0.9,
+        ior: 1.52,
+        clearcoat: 1,
+        clearcoatRoughness: 0.02,
+        envMapIntensity: 2.3,
+      }),
+    ),
+    metal: track(
+      new THREE.MeshPhysicalMaterial({
+        color: PALETTE.metal,
+        roughness: 0.31,
+        metalness: 1,
+        envMapIntensity: 1.5,
+        clearcoat: 0.35,
+        clearcoatRoughness: 0.25,
+      }),
+    ),
+    terracotta: track(
+      new THREE.MeshPhysicalMaterial({ color: PALETTE.terracotta, roughness: 0.88, metalness: 0, envMapIntensity: 0.5 }),
+    ),
+    magenta: track(
+      new THREE.MeshPhysicalMaterial({ color: PALETTE.bougainvillea, roughness: 0.72, metalness: 0, envMapIntensity: 0.7 }),
+    ),
+    // Ткань: мягкий sheen вместо блика — подушка не выглядит пластиком.
+    cushion: track(
+      new THREE.MeshPhysicalMaterial({
+        color: 0xf0ece2,
+        roughness: 0.94,
+        metalness: 0,
+        sheen: 0.5,
+        sheenRoughness: 0.85,
+        sheenColor: new THREE.Color(0xfff3e2),
+        envMapIntensity: 0.5,
+      }),
+    ),
     trim: track(standard(textures.trim, [2, 2])),
     plaster: track(standard(textures.plaster, [3, 2], { roughness: 0.96 })),
     oakFloor: track(standard(textures.oak, [3.4, 2.2], { roughness: 0.95, envMapIntensity: 0.35 })),
     oakFurniture: track(standard(textures.oak, [1, 1], { color: 0xe8d3b4 })),
-    stone: track(standard(textures.stone, [2, 2], { roughness: 0.42 })),
-    fabricCream: track(standard(textures.fabricCream, [2, 2])),
-    fabricTeal: track(standard(textures.fabricTeal, [2, 2])),
-    curtain: track(new THREE.MeshStandardMaterial({ color: 0xe9dcc6, roughness: 0.96, metalness: 0, side: THREE.DoubleSide })),
-    brass: track(new THREE.MeshStandardMaterial({ color: 0xc8a25e, roughness: 0.32, metalness: 0.9 })),
-    screenDark: track(new THREE.MeshStandardMaterial({ color: 0x14181c, roughness: 0.22, metalness: 0.3 })),
+    stone: track(
+      standard(textures.stone, [2, 2], { roughness: 0.38, clearcoat: 0.25, clearcoatRoughness: 0.35, envMapIntensity: 0.9 }),
+    ),
+    fabricCream: track(
+      standard(textures.fabricCream, [2, 2], {
+        roughness: 0.95,
+        sheen: 0.45,
+        sheenRoughness: 0.9,
+        sheenColor: new THREE.Color(0xfff6e8),
+        envMapIntensity: 0.45,
+      }),
+    ),
+    fabricTeal: track(
+      standard(textures.fabricTeal, [2, 2], {
+        roughness: 0.95,
+        sheen: 0.45,
+        sheenRoughness: 0.9,
+        sheenColor: new THREE.Color(0xd9fff6),
+        envMapIntensity: 0.45,
+      }),
+    ),
+    curtain: track(
+      new THREE.MeshPhysicalMaterial({
+        color: 0xe9dcc6,
+        roughness: 0.97,
+        metalness: 0,
+        sheen: 0.35,
+        sheenColor: new THREE.Color(0xfff4e4),
+        side: THREE.DoubleSide,
+        envMapIntensity: 0.4,
+      }),
+    ),
+    brass: track(
+      new THREE.MeshPhysicalMaterial({
+        color: 0xc8a25e,
+        roughness: 0.24,
+        metalness: 1,
+        envMapIntensity: 1.8,
+        clearcoat: 0.4,
+        clearcoatRoughness: 0.18,
+      }),
+    ),
+    screenDark: track(
+      new THREE.MeshPhysicalMaterial({
+        color: 0x12161a,
+        roughness: 0.12,
+        metalness: 0.4,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+        envMapIntensity: 1.6,
+      }),
+    ),
     // Прозрачное стекло: сквозь витраж и окна видно интерьер (задача 5).
     // Без transmission: он рендерит сцену второй раз в отдельную цель и на слабых
     // видеокартах (и в программном рендере) съедает кадры. Обычная прозрачность дешевле.
     windowGlass: track(
-      new THREE.MeshStandardMaterial({
-        color: 0xcfe6ec,
-        roughness: 0.03,
-        metalness: 0.25,
+      new THREE.MeshPhysicalMaterial({
+        color: 0xbfdfe8,
+        roughness: 0.02,
+        metalness: 0.1,
+        ior: 1.52,
         transparent: true,
-        opacity: 0.13,
-        envMapIntensity: 0.9,
+        opacity: 0.16,
+        envMapIntensity: 1.7,
+        clearcoat: 1,
+        clearcoatRoughness: 0.02,
+        specularIntensity: 1,
         side: THREE.DoubleSide,
         depthWrite: false,
       }),

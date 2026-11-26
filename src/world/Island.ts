@@ -167,9 +167,9 @@ export class Island {
   }
 
   /** Анимация: ветер в листьях пальм, кустах и траве. */
-  update(elapsed: number): void {
+  update(elapsed: number, eye?: THREE.Vector3): void {
     this.vegetation.update(elapsed);
-    this.grass.update(elapsed);
+    this.grass.update(elapsed, eye);
   }
 
   /** Сколько треугольников в сцене острова — для отчёта о производительности. */

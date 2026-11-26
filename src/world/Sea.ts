@@ -45,11 +45,13 @@ export class Sea {
         uChop: { value: 1 },
         /** Плотность дымки: та же, что у сцены (FogExp2), иначе море «чище» берега. */
         uFogDensity: { value: FOG.density },
+        /** HDR-панорама неба: отражение в волнах — настоящая карта, а не градиент (задача 20). */
+        tEnv: { value: null as THREE.Texture | null },
+        uHasEnv: { value: 0 },
       },
       vertexShader: /* glsl */ `
         uniform float uTime;
         uniform float uChop;
-        uniform float uFogDensity;
 
         varying vec3 vWorldPos;
         varying vec3 vNormal;
@@ -114,6 +116,9 @@ export class Sea {
         uniform vec3 uSunColor;
         uniform vec3 uSunDir;
         uniform float uTime;
+        uniform float uFogDensity;
+        uniform sampler2D tEnv;
+        uniform float uHasEnv;
 
         varying vec3 vWorldPos;
         varying vec3 vNormal;
@@ -189,7 +194,20 @@ export class Sea {
           fresnel = mix(0.04, 1.0, fresnel);
           vec3 reflected = reflect(-view, normal);
           reflected.y = max(reflected.y, -0.04);
-          vec3 reflection = skyColor(normalize(reflected));
+          reflected = normalize(reflected);
+          vec3 reflection = skyColor(reflected);
+          if (uHasEnv > 0.5) {
+            // Панорама HDR: солнце в ней ярче 60, поэтому в волнах появляются
+            // настоящие блики, а не «нарисованный» градиент.
+            vec2 envUv = vec2(
+              atan(reflected.z, reflected.x) * RECIPROCAL_PI * 0.5 + 0.5,
+              asin(clamp(reflected.y, -1.0, 1.0)) * RECIPROCAL_PI + 0.5
+            );
+            vec3 panorama = texture2D(tEnv, envUv).rgb;
+            // Чуть приглушаем и подмешиваем формулу: чистый HDR в воде «звенит»,
+            // а градиент даёт мягкость на горизонте.
+            reflection = mix(reflection, panorama * 0.85, 0.72);
+          }
           color = mix(color, reflection, clamp(fresnel, 0.0, 0.92));
           // Отражение солнца в воде чуть теплее — иначе оно «выпадает» из сцены
           color = mix(color, uReflect, fresnel * 0.18);
@@ -248,6 +266,20 @@ export class Sea {
     this.geometry.dispose();
     this.geometry = Sea.createGeometry(segments);
     this.mesh.geometry = this.geometry;
+  }
+
+  /** Панорама неба для отражений в воде (HDR). null — остаётся формула неба. */
+  setEnvironment(texture: THREE.Texture | null): void {
+    if (!texture) {
+      this.material.uniforms.tEnv.value = null;
+      this.material.uniforms.uHasEnv.value = 0;
+      return;
+    }
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.needsUpdate = true;
+    this.material.uniforms.tEnv.value = texture;
+    this.material.uniforms.uHasEnv.value = 1;
   }
 
   setQuality(quality: QualityLevel): void {

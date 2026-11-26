@@ -30,6 +30,48 @@ const CLIP = {
 
 type ClipKey = keyof typeof CLIP;
 
+/** Материал заказчика → физический (задача 20).
+ *
+ *  `MeshPhysicalMaterial.copy` рассчитан на такой же физический источник и
+ *  без проверок тянет `clearcoat`/`sheen` (у стандартного материала их нет —
+ *  в шейдер уехали бы `undefined`). Поэтому переносим поля руками: карты,
+ *  цвет, шероховатость и металличность, а поверх включаем лёгкий sheen —
+ *  кожа перестаёт быть «пластиковой», а ткань ловит свет мягче. */
+function toPhysical(material: THREE.Material): THREE.Material {
+  if (!(material instanceof THREE.MeshStandardMaterial) || material instanceof THREE.MeshPhysicalMaterial) {
+    return material.clone();
+  }
+  const physical = new THREE.MeshPhysicalMaterial({
+    name: material.name,
+    color: material.color.clone(),
+    map: material.map,
+    normalMap: material.normalMap,
+    normalScale: material.normalScale?.clone() ?? new THREE.Vector2(1, 1),
+    roughnessMap: material.roughnessMap,
+    metalnessMap: material.metalnessMap,
+    aoMap: material.aoMap,
+    aoMapIntensity: material.aoMapIntensity,
+    emissiveMap: material.emissiveMap,
+    emissive: material.emissive.clone(),
+    emissiveIntensity: material.emissiveIntensity,
+    alphaMap: material.alphaMap,
+    transparent: material.transparent,
+    opacity: material.opacity,
+    alphaTest: material.alphaTest,
+    side: material.side,
+    vertexColors: material.vertexColors,
+    flatShading: material.flatShading,
+    roughness: material.roughness,
+    metalness: material.metalness,
+    envMapIntensity: 1.15,
+    sheen: 0.28,
+    sheenRoughness: 0.75,
+    sheenColor: new THREE.Color(0xffe9d8),
+  });
+  physical.name = material.name || 'character-physical';
+  return physical;
+}
+
 /** Изгиб пальцев по суставам (радианы вокруг локальной X). */
 const FINGER_CURL: Readonly<Record<1 | 2 | 3, number>> = { 1: 0.95, 2: 1.25, 3: 0.8 };
 const FINGER_RE = /_(l|r)_0([123])$/;
@@ -115,7 +157,7 @@ export class RiggedHero implements HeroCharacter {
       // Материал клонируем: у героя и у NPC общая сцена, но одежда у них разная
       // (задача 19) — иначе перекраска одного перекрасила бы обоих.
       const original = Array.isArray(object.material) ? object.material : [object.material];
-      const cloned = original.map((material) => material.clone());
+      const cloned = original.map((material) => toPhysical(material));
       object.material = Array.isArray(object.material) ? cloned : cloned[0];
       const list = cloned;
       for (const material of list) {

@@ -705,6 +705,12 @@ export class Game {
     this.renderer.info.reset();
     if (this.world) {
       this.world.update(dt, this.elapsed, this.activeCamera);
+      // Фокус глубины резкости — на герое (задача 20): дальний план уходит в мягкое боке.
+      const focus =
+        this.machine.current === 'playing'
+          ? this.activeCamera.position.distanceTo(this.player.position)
+          : 26;
+      this.pipeline.setFocus(focus);
       this.pipeline.render(this.world.scene, this.activeCamera);
     }
     this.collectStats(dt);
@@ -728,8 +734,12 @@ export class Game {
     // настройка качества остаётся прежней, картинка перестаёт «плыть».
     this.perfSamples += 1;
     if (fps > 0) this.perfAvg = this.perfAvg <= 0 ? fps : this.perfAvg * 0.7 + fps * 0.3;
-    if (this.perfSamples > 6 && this.perfAvg > 0 && this.perfAvg < 42 && this.machine.current === 'playing') {
-      if (this.pipeline.disableAmbientOcclusion()) {
+    if (this.perfSamples > 6 && this.perfAvg > 0 && this.perfAvg < 45 && this.machine.current === 'playing') {
+      // Порядок уступок: сначала боке (самое дорогое), потом AO, и только потом
+      // пользователь сам опускает качество в настройках.
+      if (this.pipeline.disableCinematicBlur()) {
+        this.ui.toast('Глубина резкости отключена ради плавности кадров', 'info');
+      } else if (this.pipeline.disableAmbientOcclusion()) {
         this.ui.toast('SSAO отключён ради плавности кадров', 'info');
       }
     }
@@ -741,7 +751,19 @@ export class Game {
           `tris     ${info.render.triangles.toLocaleString('ru-RU')}`,
           `state    ${this.machine.current ?? '—'}`,
           `quality  ${this.settings.get('quality')}`,
-          `post     ${this.pipeline.stats.post ? `bloom${this.pipeline.stats.ssao ? ' ssao' : ''}${this.pipeline.stats.smaa ? ' smaa' : ''}` : '—'}`,
+          `post     ${
+            this.pipeline.stats.post
+              ? [
+                  this.pipeline.stats.ssao && 'ssao',
+                  this.pipeline.stats.bokeh && 'bokeh',
+                  this.pipeline.stats.bloom && 'bloom',
+                  this.pipeline.stats.smaa && 'smaa',
+                  this.pipeline.stats.film && 'film',
+                ]
+                  .filter(Boolean)
+                  .join(' ')
+              : '—'
+          }`,
         ].join('\n'),
       );
     }

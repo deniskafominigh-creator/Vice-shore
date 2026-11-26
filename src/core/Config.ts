@@ -29,6 +29,10 @@ export interface QualityPreset {
   /** Во сколько раз AO считается мельче кадра (0,5 — вчетверо дешевле). */
   readonly ssaoScale: number;
   readonly bloomStrength: number;
+  /** Глубина резкости (BokehPass): фокус на герое, дальний план размыт. */
+  readonly bokeh: boolean;
+  /** Плёночный эффект (FilmPass): зерно и виньетка кадра. */
+  readonly film: boolean;
 }
 
 /** Порог «дорого/дёшево» подобран так, чтобы даже слабая видеокарта держала 60 FPS:
@@ -45,6 +49,8 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
     smaa: false,
     ssaoScale: 0.5,
     bloomStrength: 0,
+    bokeh: false,
+    film: false,
   },
   medium: {
     label: 'Среднее',
@@ -56,6 +62,8 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
     smaa: true,
     ssaoScale: 0.5,
     bloomStrength: 0.26,
+    bokeh: true,
+    film: true,
   },
   high: {
     label: 'Высокое',
@@ -67,6 +75,8 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
     smaa: true,
     ssaoScale: 0.5,
     bloomStrength: 0.34,
+    bokeh: true,
+    film: true,
   },
 };
 
