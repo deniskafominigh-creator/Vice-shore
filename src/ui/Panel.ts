@@ -7,8 +7,17 @@ export interface PanelOptions {
   readonly onClose: () => void;
 }
 
+/** Что Ui умеет показывать модально: панели и экранные диалоги (задача 19). */
+export interface Modal {
+  readonly root: HTMLElement;
+  show(): void;
+  hide(): void;
+  readonly isVisible: boolean;
+  handleKey(code: string): boolean;
+}
+
 /** Базовая модальная панель: настройки, управление, пауза строятся на ней. */
-export class Panel {
+export class Panel implements Modal {
   readonly root: HTMLElement;
   readonly body: HTMLElement;
   readonly footer: HTMLElement;

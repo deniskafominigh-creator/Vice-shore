@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PALETTE, QUALITY_PRESETS, SUN, type QualityLevel } from '../core/Config';
+import { FOG, PALETTE, QUALITY_PRESETS, SUN, type QualityLevel } from '../core/Config';
 import type { LoadedAssets } from '../core/Assets';
 import { Sky } from './Sky';
 import { Sea } from './Sea';
@@ -24,6 +24,8 @@ export class World {
     this.sunDirection = new THREE.Vector3(SUN.direction[0], SUN.direction[1], SUN.direction[2]).normalize();
 
     this.scene.background = new THREE.Color(PALETTE.skyHorizon);
+    // Дымка в цвет неба: дальний берег и трибуны не обрываются, а растворяются.
+    this.scene.fog = new THREE.FogExp2(PALETTE.skyHorizon, FOG.density);
 
     this.sky = new Sky(this.sunDirection);
     this.sea = new Sea(this.sunDirection, QUALITY_PRESETS[quality].seaSegments);

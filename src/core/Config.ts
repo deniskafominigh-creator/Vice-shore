@@ -16,16 +16,67 @@ export type QualityLevel = 'low' | 'medium' | 'high';
 export interface QualityPreset {
   readonly label: string;
   readonly pixelRatio: number;
+  /** Разрешение карты теней: чем больше, тем мягче и чётче тени. */
   readonly shadowMapSize: number;
   /** Число сегментов плоскости моря (влияет на детализацию волн). */
   readonly seaSegments: number;
+  /** Пост-обработка (задача 19): свечение ярких мест. */
+  readonly bloom: boolean;
+  /** Ambient Occlusion: затемнение в стыках и под предметами. */
+  readonly ssao: boolean;
+  /** Сглаживание SMAA поверх готового кадра (вместо «лесенки»). */
+  readonly smaa: boolean;
+  /** Во сколько раз AO считается мельче кадра (0,5 — вчетверо дешевле). */
+  readonly ssaoScale: number;
+  readonly bloomStrength: number;
 }
 
+/** Порог «дорого/дёшево» подобран так, чтобы даже слабая видеокарта держала 60 FPS:
+ *  низкое — прямой рендер с MSAA самого рендерера (никаких проходов),
+ *  среднее — bloom + SMAA, высокое — плюс SSAO в половину разрешения. */
 export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
-  low: { label: 'Низкое', pixelRatio: 1, shadowMapSize: 512, seaSegments: 96 },
-  medium: { label: 'Среднее', pixelRatio: 1.25, shadowMapSize: 1024, seaSegments: 160 },
-  high: { label: 'Высокое', pixelRatio: 1.5, shadowMapSize: 2048, seaSegments: 256 },
+  low: {
+    label: 'Низкое',
+    pixelRatio: 1,
+    shadowMapSize: 1024,
+    seaSegments: 96,
+    bloom: false,
+    ssao: false,
+    smaa: false,
+    ssaoScale: 0.5,
+    bloomStrength: 0,
+  },
+  medium: {
+    label: 'Среднее',
+    pixelRatio: 1.25,
+    shadowMapSize: 2048,
+    seaSegments: 160,
+    bloom: true,
+    ssao: false,
+    smaa: true,
+    ssaoScale: 0.5,
+    bloomStrength: 0.26,
+  },
+  high: {
+    label: 'Высокое',
+    pixelRatio: 1.5,
+    shadowMapSize: 4096,
+    seaSegments: 256,
+    bloom: true,
+    ssao: true,
+    smaa: true,
+    ssaoScale: 0.5,
+    bloomStrength: 0.34,
+  },
 };
+
+/** Дымка (задача 19): дальние дома и трибуны растворяются в цвете горизонта. */
+export const FOG = {
+  /** Экспоненциальная плотность: 13 % на 120 м, 80 % на 400 м. */
+  density: 0.0032,
+  /** Экспозиция ACES: чуть выше единицы — «кинематографично», но без пересвета. */
+  exposure: 1.2,
+} as const;
 
 export const QUALITY_ORDER: readonly QualityLevel[] = ['low', 'medium', 'high'];
 

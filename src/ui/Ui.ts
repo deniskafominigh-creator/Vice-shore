@@ -9,7 +9,7 @@ import { LoadingScreen } from './LoadingScreen';
 import { MainMenu } from './MainMenu';
 import { MissionHud } from './MissionHud';
 import { PauseMenu } from './PauseMenu';
-import { Panel } from './Panel';
+import type { Modal } from './Panel';
 import { SettingsPanel } from './SettingsPanel';
 import { TalkPanel, type TalkOption } from './TalkPanel';
 import { Toasts, type ToastTone } from './Toasts';
@@ -60,7 +60,7 @@ export class Ui {
 
   /** Сюда `Game` кладёт сенсорное управление: интерфейс не создаёт его сам. */
   private readonly touchHolder = el('div', { className: 'touch-holder' });
-  private readonly modals: Panel[] = [];
+  private readonly modals: Modal[] = [];
   private disposed = false;
 
   constructor(
@@ -121,8 +121,7 @@ export class Ui {
         onAsk: (id) => handlers.talk(id),
         onClose: () => handlers.closeTalk(),
       },
-      'Касса · «Вайс Шор Арена»',
-      'Кассир',
+      { speaker: 'Кассир', role: 'касса · «Вайс Шор Арена»', monogram: 'К' },
     );
 
     this.shutdown = this.buildShutdown(handlers);
@@ -408,12 +407,12 @@ export class Ui {
     );
   }
 
-  private pushModal(panel: Panel): void {
+  private pushModal(panel: Modal): void {
     if (!this.modals.includes(panel)) this.modals.push(panel);
     panel.show();
   }
 
-  private popModal(panel: Panel): void {
+  private popModal(panel: Modal): void {
     const index = this.modals.indexOf(panel);
     if (index >= 0) this.modals.splice(index, 1);
     panel.hide();

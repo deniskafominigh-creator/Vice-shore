@@ -4,6 +4,7 @@ import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.j
 import { clamp, damp } from '../../core/MathUtils';
 import modelUrl from '../../assets/characters/character_rigged.glb?url';
 import type { CharacterPose } from './Character';
+import { applyOutfit } from './Outfit';
 import type { Rig } from './CharacterRig';
 import type { HeroCharacter } from './HeroCharacter';
 
@@ -111,7 +112,12 @@ export class RiggedHero implements HeroCharacter {
       this.geometries.push(object.geometry);
       const index = object.geometry.getIndex();
       triangles += (index ? index.count : (object.geometry.attributes.position?.count ?? 0)) / 3;
-      const list = Array.isArray(object.material) ? object.material : [object.material];
+      // Материал клонируем: у героя и у NPC общая сцена, но одежда у них разная
+      // (задача 19) — иначе перекраска одного перекрасила бы обоих.
+      const original = Array.isArray(object.material) ? object.material : [object.material];
+      const cloned = original.map((material) => material.clone());
+      object.material = Array.isArray(object.material) ? cloned : cloned[0];
+      const list = cloned;
       for (const material of list) {
         if (this.materials.includes(material)) continue;
         this.materials.push(material);
@@ -308,6 +314,12 @@ export class RiggedHero implements HeroCharacter {
 
     // Мяч в руках — обе кисти, валик — правая.
     void this.phase;
+  }
+
+  /** Перекрасить одежду (задача 19): палитра по классам из `Outfit.ts`.
+   *  Возвращает число перекрашенных материалов — 0 значит «нечего красить». */
+  recolourOutfit(palette: readonly string[], maxSize = 2048): number {
+    return applyOutfit(this.materials, palette, maxSize);
   }
 
   dispose(): void {

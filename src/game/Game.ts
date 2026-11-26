@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Assets, type LoadedAssets } from '../core/Assets';
 import { AudioSystem } from '../core/Audio';
-import { DEBUG, ISLAND, QUALITY_PRESETS, STADIUM, type QualityLevel } from '../core/Config';
+import { DEBUG, FOG, ISLAND, QUALITY_PRESETS, STADIUM, type QualityLevel } from '../core/Config';
 import { EventBus } from '../core/EventBus';
 import type { GameEventMap } from '../core/Events';
 import { GameStateMachine } from '../core/GameStateMachine';
@@ -19,6 +19,7 @@ import { auditScene, type AuditReport } from '../world/SceneAudit';
 import { CHARACTER_POSES, Character, POSE_LABELS, type CharacterPose } from '../entities/character/Character';
 import type { HeroCharacter } from '../entities/character/HeroCharacter';
 import { cloneGltfForNpc, loadHeroGltf, RiggedHero } from '../entities/character/RiggedHero';
+import { HERO_OUTFIT, SELLER_OUTFIT } from '../entities/character/Outfit';
 import { TicketSeller } from '../entities/npc/TicketSeller';
 import { SellerVoice } from '../entities/npc/SellerVoice';
 import { lineById, SELLER_QUESTIONS, SELLER_SPEAKER, SELLER_SPOT, TicketOffice } from './TicketOffice';
@@ -30,6 +31,7 @@ import { DialogueSystem } from './DialogueSystem';
 import { PaintMission } from './PaintMission';
 import { BallMission } from './BallMission';
 import { Football } from './Football';
+import { RenderPipeline } from './RenderPipeline';
 
 const DEFAULT_BOUNDS = { minX: -13, maxX: 13, minZ: -10, maxZ: 10 } as const;
 
@@ -76,6 +78,8 @@ export class Game {
   private talking = false;
   /** Матч уже играли — от этого зависят ответы кассира про запись и просмотр. */
   private matchPlayed = false;
+  /** Когда закрылся разговор: пауза в тот же миг от того же Esc не срабатывает. */
+  private talkClosedAt = -Infinity;
   /** Герой уже на территории стадиона (для одноразового события входа). */
   private atStadium = false;
   /** Озвучка героя (задача 9). */
@@ -89,6 +93,8 @@ export class Game {
 
   readonly canvas: HTMLCanvasElement;
   readonly renderer: THREE.WebGLRenderer;
+  /** Пост-обработка кадра: bloom, SSAO, SMAA (задача 19). */
+  readonly pipeline: RenderPipeline;
   readonly driftCamera: DriftCamera;
   readonly freeCamera: FreeCamera;
   readonly thirdPersonCamera: ThirdPersonCamera;
@@ -116,6 +122,9 @@ export class Game {
   private debugStats = false;
   private statsTimer = 0;
   private statsFrames = 0;
+  /** Средний FPS и сколько раз его уже мерили — для автозащиты качества. */
+  private perfAvg = 0;
+  private perfSamples = 0;
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     this.canvas = canvas;
@@ -138,8 +147,13 @@ export class Game {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.12;
+    this.renderer.toneMappingExposure = FOG.exposure;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Информация о кадре собирается по всем проходам композера, а не по последнему.
+    this.renderer.info.autoReset = false;
+
+    this.pipeline = new RenderPipeline(this.renderer, this.settings.get('quality'));
+    this.pipeline.setSize(window.innerWidth, window.innerHeight);
 
     // ——— камеры ————————————————————————————————————————————————
     const aspect = window.innerWidth / Math.max(1, window.innerHeight);
@@ -257,6 +271,8 @@ export class Game {
 
   async pause(): Promise<void> {
     if (this.machine.current !== 'playing' || this.machine.isBusy) return;
+    // Только что закрыли разговор тем же нажатием Esc — это не команда «пауза».
+    if (performance.now() - this.talkClosedAt < 400) return;
     this.kickCharging = false;
     this.ui.setKickCharge(null);
     await this.machine.change('paused');
@@ -291,6 +307,7 @@ export class Game {
     this.football?.dispose();
     this.character?.dispose();
     this.world?.dispose();
+    this.pipeline.dispose();
     this.assets.dispose();
     this.renderer.dispose();
     for (const unsubscribe of this.unsubscribers) unsubscribe();
@@ -314,6 +331,8 @@ export class Game {
     const gltf = await loadHeroGltf();
     const npcGltf = gltf ? cloneGltfForNpc(gltf) : null;
     this.character = gltf ? new RiggedHero(gltf) : new Character();
+    // Одежда героя перекрашена по палитре (задача 19): кожа и волосы на месте.
+    if (this.character instanceof RiggedHero) this.character.recolourOutfit(HERO_OUTFIT, 2048);
     // Герой стоит на дорожке лицом к дому: камера от третьего лица за плечом
     const island = this.world.island;
     this.player.spawn(0.7, 8.4, island, 0);
@@ -334,6 +353,8 @@ export class Game {
       this.ui.setLoadingProgress(0.96, 'Кассир');
       const groundY = island.groundHeightAt(SELLER_SPOT.x, SELLER_SPOT.z);
       this.seller = new TicketSeller(npcGltf, groundY);
+      // Кассир в другой форме: та же модель, другая палитра (задача 19).
+      this.seller.hero.recolourOutfit(SELLER_OUTFIT, 1024);
       this.world.scene.add(this.seller.group);
       // Сквозь кассира не пройти: коллайдер + снимок для аудита, иначе аудит
       // задачи 10 честно назовёт его «коллизией без предмета».
@@ -541,14 +562,22 @@ export class Game {
     this.ui.setMissionPrompt(null);
     this.ui.setTalkAnswer(SELLER_SPEAKER, null);
     this.ui.openTalk(this.talkOptions());
+    // Свободные клавиши не должны «догонять» героя после разговора.
+    this.input.clearVirtual();
     seller.wave();
     void this.sellerVoice?.preload();
     this.say(this.office.greeting());
   }
 
   endTalk(): void {
-    if (!this.talking) return;
+    if (!this.talking) {
+      if (this.ui.talkOpen) this.ui.closeTalk();
+      return;
+    }
     this.talking = false;
+    // Один Esc ловят и панель (document), и игровой обработчик (window). Без этой
+    // метки разговор закрывался, а игра тут же вставала на паузу — и герой «замирал».
+    this.talkClosedAt = performance.now();
     this.ui.closeTalk();
     this.sellerVoice?.stop();
     this.seller?.setTalking(false);
@@ -672,9 +701,11 @@ export class Game {
   }
 
   private render(dt: number): void {
+    // Сброс статистики вручную: за кадр может быть несколько проходов композера.
+    this.renderer.info.reset();
     if (this.world) {
       this.world.update(dt, this.elapsed, this.activeCamera);
-      this.renderer.render(this.world.scene, this.activeCamera);
+      this.pipeline.render(this.world.scene, this.activeCamera);
     }
     this.collectStats(dt);
   }
@@ -692,6 +723,16 @@ export class Game {
       drawCalls: info.render.calls,
       triangles: info.render.triangles,
     });
+
+    // Защита FPS (задача 19): если тяжёлый AO роняет кадр, снимаем его на ходу —
+    // настройка качества остаётся прежней, картинка перестаёт «плыть».
+    this.perfSamples += 1;
+    if (fps > 0) this.perfAvg = this.perfAvg <= 0 ? fps : this.perfAvg * 0.7 + fps * 0.3;
+    if (this.perfSamples > 6 && this.perfAvg > 0 && this.perfAvg < 42 && this.machine.current === 'playing') {
+      if (this.pipeline.disableAmbientOcclusion()) {
+        this.ui.toast('SSAO отключён ради плавности кадров', 'info');
+      }
+    }
     if (this.debugStats) {
       this.ui.setDebug(
         [
@@ -700,6 +741,7 @@ export class Game {
           `tris     ${info.render.triangles.toLocaleString('ru-RU')}`,
           `state    ${this.machine.current ?? '—'}`,
           `quality  ${this.settings.get('quality')}`,
+          `post     ${this.pipeline.stats.post ? `bloom${this.pipeline.stats.ssao ? ' ssao' : ''}${this.pipeline.stats.smaa ? ' smaa' : ''}` : '—'}`,
         ].join('\n'),
       );
     }
@@ -818,6 +860,8 @@ export class Game {
     const preset = QUALITY_PRESETS[quality];
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.pixelRatio));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.pipeline.setQuality(quality);
+    this.pipeline.setSize(window.innerWidth, window.innerHeight);
     this.world?.setQuality(quality);
     this.ui.toast(`Качество графики: ${preset.label.toLowerCase()}`);
   }
@@ -858,6 +902,7 @@ export class Game {
       const width = window.innerWidth;
       const height = Math.max(1, window.innerHeight);
       this.renderer.setSize(width, height);
+      this.pipeline.setSize(width, height);
       const aspect = width / height;
       this.driftCamera.setAspect(aspect);
       this.freeCamera.setAspect(aspect);

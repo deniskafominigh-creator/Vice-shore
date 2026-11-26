@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ISLAND, PALETTE, QUALITY_PRESETS, type QualityLevel } from '../core/Config';
+import { FOG, ISLAND, PALETTE, QUALITY_PRESETS, type QualityLevel } from '../core/Config';
 
 /** Размер плоскости моря: дальше 4,5 км её не видно — тонет в дымке горизонта. */
 const SEA_SIZE = 9000;
@@ -43,10 +43,13 @@ export class Sea {
         uSunDir: { value: sunDirection.clone().normalize() },
         /** 0…1 — насколько «штормит» (качество: на низком волны мягче, чтобы не пилило) */
         uChop: { value: 1 },
+        /** Плотность дымки: та же, что у сцены (FogExp2), иначе море «чище» берега. */
+        uFogDensity: { value: FOG.density },
       },
       vertexShader: /* glsl */ `
         uniform float uTime;
         uniform float uChop;
+        uniform float uFogDensity;
 
         varying vec3 vWorldPos;
         varying vec3 vNormal;
@@ -216,8 +219,9 @@ export class Sea {
           foam = clamp(foam, 0.0, 1.0);
           color = mix(color, vec3(1.0), foam);
 
-          // ——— дымка горизонта ———
-          color = mix(color, uHorizon, smoothstep(1200.0, 4600.0, distanceToEye));
+          // ——— дымка: тот же закон, что у FogExp2 сцены ———
+          float fogAmount = 1.0 - exp(-pow(distanceToEye * uFogDensity, 2.0));
+          color = mix(color, uHorizon, clamp(fogAmount, 0.0, 1.0));
 
           gl_FragColor = vec4(color, 1.0);
           #include <tonemapping_fragment>
