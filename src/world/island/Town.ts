@@ -173,23 +173,30 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     // Задняя и передняя — на полную ширину, боковые — между ними с нахлёстом SEAM.
     const backZ = -halfD + WALL / 2;
     const frontZ = halfD - WALL / 2;
+    /** Наружные плоскости фасадов. Всё навесное (окна, двери, ставни) считается
+     *  от них: деталь должна выходить НАРУЖУ, иначе стена её закрывает. */
+    const frontOut = frontZ + WALL / 2;
+    const backOut = backZ - WALL / 2;
     add(
       house,
       box(wall, [spec.width + SEAM * 2, bodyHeight, WALL], [0, wallFoot + bodyHeight / 2, backZ]),
     );
-    // Передняя стена — из двух простенков: в середине вход
+    // Передняя стена — из двух простенков: в середине вход.
+    // Простенок короче на SEAM: его торец уходит внутрь боковой стены и больше
+    // не совпадает с её наружной плоскостью (раньше это давало мерцание в углу).
     const doorWidth = 1.35;
-    const pierWidth = (spec.width - doorWidth) / 2 + SEAM;
+    const pierWidth = (spec.width - doorWidth) / 2 - SEAM;
     add(
       house,
-      box(wall, [pierWidth, bodyHeight, WALL], [-(doorWidth / 2 + pierWidth / 2 - SEAM), wallFoot + bodyHeight / 2, frontZ]),
+      box(wall, [pierWidth, bodyHeight, WALL], [-(doorWidth / 2 + pierWidth / 2), wallFoot + bodyHeight / 2, frontZ]),
     );
     add(
       house,
-      box(wall, [pierWidth, bodyHeight, WALL], [doorWidth / 2 + pierWidth / 2 - SEAM, wallFoot + bodyHeight / 2, frontZ]),
+      box(wall, [pierWidth, bodyHeight, WALL], [doorWidth / 2 + pierWidth / 2, wallFoot + bodyHeight / 2, frontZ]),
     );
-    // Перемычка над дверью
-    add(house, box(wall, [doorWidth + SEAM * 2, 0.9, WALL], [0, wallTop - 0.45, frontZ]));
+    // Перемычка над дверью — вынесена на 2 см: в одной плоскости с простенками
+    // её торцы давали мерцание на всю высоту проёма.
+    add(house, box(wall, [doorWidth + SEAM * 2, 0.9, WALL], [0, wallTop - 0.45, frontZ + 0.02]));
     // Боковые стены — с нахлёстом в обе стороны
     add(
       house,
@@ -204,34 +211,40 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     add(house, box(materials.trim, [spec.width + 0.12, 0.1, spec.depth + 0.12], [0, wallFoot + 0.05, 0]));
 
     // ——— дверь ———
-    add(house, box(materials.wood, [doorWidth - 0.12, 2.25, 0.09], [0, wallFoot + 1.125, halfD - 0.02]));
-    add(house, box(materials.brass, [0.06, 0.28, 0.06], [0.45, wallFoot + 1.1, halfD + 0.02]));
+    add(house, box(materials.wood, [doorWidth - 0.12, 2.25, 0.09], [0, wallFoot + 1.125, frontOut - 0.02]));
+    add(house, box(materials.brass, [0.06, 0.28, 0.06], [0.45, wallFoot + 1.1, frontOut + 0.04]));
     // Козырёк над входом
-    add(house, box(materials.trim, [doorWidth + 1.1, 0.12, 1.1], [0, wallFoot + 2.42, halfD + 0.5]));
-    add(house, box(materials.white, [0.1, 0.5, 0.1], [-(doorWidth / 2 + 0.4), wallFoot + 2.14, halfD + 0.9]));
-    add(house, box(materials.white, [0.1, 0.5, 0.1], [doorWidth / 2 + 0.4, wallFoot + 2.14, halfD + 0.9]));
+    add(house, box(materials.trim, [doorWidth + 1.1, 0.12, 1.1], [0, wallFoot + 2.42, frontOut + 0.5]));
+    add(house, box(materials.white, [0.1, 0.5, 0.1], [-(doorWidth / 2 + 0.4), wallFoot + 2.14, frontOut + 0.9]));
+    add(house, box(materials.white, [0.1, 0.5, 0.1], [doorWidth / 2 + 0.4, wallFoot + 2.14, frontOut + 0.9]));
     // Ступень перед дверью
-    add(house, box(materials.stone, [doorWidth + 0.7, 0.12, 0.7], [0, 0.06, halfD + 0.42]));
+    add(house, box(materials.stone, [doorWidth + 0.7, 0.12, 0.7], [0, 0.06, frontOut + 0.42]));
 
-    // ——— окна: откос, рама, стекло, подоконник, ставни ———
+    // ——— окна: стекло, рама, импост, подоконник, ставни ———
+    // Вынос деталей от наружной плоскости стены, м. Стекло — ближе всех к фасаду,
+    // но всё же снаружи; рама выступает сильнее и читается как переплёт.
+    const PANE = 0.02;
+    const FRAME = 0.045;
+    const MULLION = 0.048;
+    const SILL = 0.13;
+    const SHUTTER = 0.03;
     const windowRow = (y: number, count: number): void => {
       const spacing = spec.width / (count + 1);
       for (let i = 0; i < count; i += 1) {
         const x = -halfW + spacing * (i + 1);
-        // Стекло утоплено на 4 см в стену — грани не совпадают с плоскостью фасада
-        add(house, box(materials.windowGlass, [1.15, 1.35, 0.06], [x, y, frontZ - WALL / 2 + 0.04]));
-        // Рама вокруг стекла, на 3 см выступает наружу
-        add(house, box(materials.trim, [1.27, 0.07, 0.1], [x, y + 0.71, frontZ + 0.05]));
-        add(house, box(materials.trim, [1.27, 0.07, 0.1], [x, y - 0.71, frontZ + 0.05]));
-        add(house, box(materials.trim, [0.07, 1.49, 0.1], [x - 0.6, y, frontZ + 0.05]));
-        add(house, box(materials.trim, [0.07, 1.49, 0.1], [x + 0.6, y, frontZ + 0.05]));
+        const z = frontOut;
+        add(house, box(materials.windowGlass, [1.15, 1.35, 0.06], [x, y, z + PANE]));
+        add(house, box(materials.trim, [1.27, 0.07, 0.1], [x, y + 0.71, z + FRAME]));
+        add(house, box(materials.trim, [1.27, 0.07, 0.1], [x, y - 0.71, z + FRAME]));
+        add(house, box(materials.trim, [0.07, 1.49, 0.1], [x - 0.6, y, z + FRAME]));
+        add(house, box(materials.trim, [0.07, 1.49, 0.1], [x + 0.6, y, z + FRAME]));
         // Импост
-        add(house, box(materials.trim, [0.05, 1.35, 0.07], [x, y, frontZ + 0.04]));
+        add(house, box(materials.trim, [0.05, 1.35, 0.07], [x, y, z + MULLION]));
         // Подоконник
-        add(house, box(materials.stone, [1.45, 0.08, 0.26], [x, y - 0.78, frontZ + 0.13]));
+        add(house, box(materials.stone, [1.45, 0.08, 0.26], [x, y - 0.78, z + SILL]));
         // Ставни-жалюзи
-        add(house, box(materials.wood, [0.34, 1.44, 0.06], [x - 0.83, y, frontZ + 0.09]));
-        add(house, box(materials.wood, [0.34, 1.44, 0.06], [x + 0.83, y, frontZ + 0.09]));
+        add(house, box(materials.wood, [0.34, 1.44, 0.06], [x - 0.83, y, z + SHUTTER]));
+        add(house, box(materials.wood, [0.34, 1.44, 0.06], [x + 0.83, y, z + SHUTTER]));
       }
     };
 
@@ -241,12 +254,13 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     for (let i = 0; i < sideWindows; i += 1) {
       const z = -halfD + (i + 1) * (spec.depth / (sideWindows + 1));
       for (const side of [-1, 1] as const) {
-        add(house, box(materials.windowGlass, [0.06, 1.2, 1.0], [side * (halfW - WALL / 2 + 0.04), wallFoot + 1.6, z]));
-        add(house, box(materials.trim, [0.1, 0.06, 1.12], [side * (halfW + 0.05), wallFoot + 2.23, z]));
-        add(house, box(materials.trim, [0.1, 0.06, 1.12], [side * (halfW + 0.05), wallFoot + 0.97, z]));
-        add(house, box(materials.trim, [0.1, 1.32, 0.06], [side * (halfW + 0.05), wallFoot + 1.6, z - 0.53]));
-        add(house, box(materials.trim, [0.1, 1.32, 0.06], [side * (halfW + 0.05), wallFoot + 1.6, z + 0.53]));
-        add(house, box(materials.stone, [0.24, 0.07, 1.28], [side * (halfW + 0.12), wallFoot + 0.92, z]));
+        const out = side * halfW;
+        add(house, box(materials.windowGlass, [0.06, 1.2, 1.0], [out + side * PANE, wallFoot + 1.6, z]));
+        add(house, box(materials.trim, [0.1, 0.06, 1.12], [out + side * FRAME, wallFoot + 2.23, z]));
+        add(house, box(materials.trim, [0.1, 0.06, 1.12], [out + side * FRAME, wallFoot + 0.97, z]));
+        add(house, box(materials.trim, [0.1, 1.32, 0.06], [out + side * FRAME, wallFoot + 1.6, z - 0.53]));
+        add(house, box(materials.trim, [0.1, 1.32, 0.06], [out + side * FRAME, wallFoot + 1.6, z + 0.53]));
+        add(house, box(materials.stone, [0.24, 0.07, 1.28], [out + side * SILL, wallFoot + 0.92, z]));
       }
     }
 
@@ -254,18 +268,19 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     const backWindows = Math.max(2, Math.round(spec.width / 6));
     for (let i = 0; i < backWindows; i += 1) {
       const x = -halfW + (i + 1) * (spec.width / (backWindows + 1));
-      add(house, box(materials.windowGlass, [1.0, 1.25, 0.06], [x, wallFoot + 1.55, backZ + WALL / 2 - 0.04]));
-      add(house, box(materials.trim, [1.12, 0.06, 0.1], [x, wallFoot + 2.21, backZ - 0.06]));
-      add(house, box(materials.trim, [1.12, 0.06, 0.1], [x, wallFoot + 0.89, backZ - 0.06]));
-      add(house, box(materials.trim, [0.06, 1.38, 0.1], [x - 0.53, wallFoot + 1.55, backZ - 0.06]));
-      add(house, box(materials.trim, [0.06, 1.38, 0.1], [x + 0.53, wallFoot + 1.55, backZ - 0.06]));
-      add(house, box(materials.stone, [1.24, 0.07, 0.22], [x, wallFoot + 0.84, backZ - 0.12]));
+      const z = backOut;
+      add(house, box(materials.windowGlass, [1.0, 1.25, 0.06], [x, wallFoot + 1.55, z - PANE]));
+      add(house, box(materials.trim, [1.12, 0.06, 0.1], [x, wallFoot + 2.21, z - FRAME]));
+      add(house, box(materials.trim, [1.12, 0.06, 0.1], [x, wallFoot + 0.89, z - FRAME]));
+      add(house, box(materials.trim, [0.06, 1.38, 0.1], [x - 0.53, wallFoot + 1.55, z - FRAME]));
+      add(house, box(materials.trim, [0.06, 1.38, 0.1], [x + 0.53, wallFoot + 1.55, z - FRAME]));
+      add(house, box(materials.stone, [1.24, 0.07, 0.22], [x, wallFoot + 0.84, z - 0.12]));
     }
     // Служебная дверь
     const serviceX = halfW - 1.3;
-    add(house, box(materials.wood, [0.95, 2.1, 0.09], [serviceX, wallFoot + 1.05, backZ + WALL / 2 - 0.02]));
-    add(house, box(materials.brass, [0.05, 0.22, 0.05], [serviceX + 0.35, wallFoot + 1.05, backZ - 0.05]));
-    add(house, box(materials.stone, [1.2, 0.12, 0.6], [serviceX, 0.06, backZ - 0.42]));
+    add(house, box(materials.wood, [0.95, 2.1, 0.09], [serviceX, wallFoot + 1.05, backOut + 0.02]));
+    add(house, box(materials.brass, [0.05, 0.22, 0.05], [serviceX + 0.35, wallFoot + 1.05, backOut - 0.05]));
+    add(house, box(materials.stone, [1.2, 0.12, 0.6], [serviceX, 0.06, backOut - 0.42]));
 
     // ——— второй этаж: пояс, окна, балкон с ограждением ———
     if (twoFloors) {
@@ -289,8 +304,9 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
       add(house, box(materials.metal, [0.035, 1.04, 0.035], [balconyWidth / 2, railY, halfD + 0.02]));
       // Боковые заполнения короче и чуть внутрь: иначе их грани совпадают с угловыми
       // стойками и с передней планкой — аудит видит z-fighting.
-      add(house, box(materials.metal, [0.035, 1.04, 1.34], [-balconyWidth / 2 + 0.02, railY, halfD + 0.66]));
-      add(house, box(materials.metal, [0.035, 1.04, 1.34], [balconyWidth / 2 - 0.02, railY, halfD + 0.66]));
+      // Зазор до кромки плиты — 15 мм: при 2,5 мм грани попадают в допуск мерцания.
+      add(house, box(materials.metal, [0.035, 1.04, 1.34], [-balconyWidth / 2 + 0.035, railY, halfD + 0.66]));
+      add(house, box(materials.metal, [0.035, 1.04, 1.34], [balconyWidth / 2 - 0.035, railY, halfD + 0.66]));
     }
 
     // ——— крыша: плита с парапетом и ограждением кровли ———
@@ -420,9 +436,10 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
       add(house, cylinder(materials.metal, 0.05, 0.05, 0.9, [x, 0.45, halfD + 0.6], 8));
       add(house, box(lampGlow, [0.16, 0.16, 0.16], [x, 0.96, halfD + 0.6]));
     }
-    // Фонарь у двери (бра)
-    add(house, box(materials.metal, [0.12, 0.22, 0.1], [doorWidth / 2 + 0.55, wallFoot + 1.95, halfD - 0.03]));
-    add(house, box(lampGlow, [0.14, 0.26, 0.12], [doorWidth / 2 + 0.55, wallFoot + 1.95, halfD - 0.06]));
+    // Фонарь у двери (бра). Стоит вплотную к наличнику: на 0,55 м от проёма он
+    // попадал прямо в окно первого этажа.
+    add(house, box(materials.metal, [0.12, 0.22, 0.1], [doorWidth / 2 + 0.18, wallFoot + 1.95, frontOut + 0.02]));
+    add(house, box(lampGlow, [0.14, 0.26, 0.12], [doorWidth / 2 + 0.18, wallFoot + 1.95, frontOut + 0.07]));
 
     // ——— кашпо с цветами по фасаду ———
     const pots = Math.max(2, Math.round(spec.width / 5));

@@ -13,7 +13,8 @@
     "verify:touch": "node tools/verify-touch.mjs",
     "verify:ui": "node tools/verify-ui.mjs",
     "verify": "node tools/verify.mjs",
-    "shots:island": "node tools/shot-island13.mjs"
+    "shots:island": "node tools/shot-island13.mjs",
+    "audit:offline": "node tools/audit-offline.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.169.0",
