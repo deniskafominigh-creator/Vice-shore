@@ -114,7 +114,7 @@ const GOAL_EAST = CENTER_X + STADIUM.pitchWidth / 2;
 /** Радиус контроля мяча у полевого игрока. */
 const CONTROL = 0.62;
 /** Радиус, с которого можно бить по воротам. */
-const SHOOT_RANGE = 12;
+const SHOOT_RANGE = 13;
 /** Предел «шума» цели и раскачки — чтобы игроки не телепортировались. */
 const ACCEL = MATCH.acceleration;
 const TURN_RATE = 9;
@@ -193,6 +193,12 @@ export class MatchSim {
 
   get humanPlayer(): SimPlayer {
     return this.players.find((player) => player.human) as SimPlayer;
+  }
+
+  /** У кого мяч — для проверок и отладки. */
+  get ballOwner(): { id: number; team: TeamId; human: boolean } | null {
+    const owner = this.possession;
+    return owner ? { id: owner.id, team: owner.team, human: owner.human } : null;
   }
 
   get scoreLabel(): string {
@@ -625,7 +631,7 @@ export class MatchSim {
     // Отобрать у ИИ герой должен сам, иначе стоящий на месте герой
     // «магнитом» держал бы мяч и матч вставал.
     const humanDistance = human ? Math.hypot(human.x - ball.x, human.z - ball.z) : Infinity;
-    if (human && humanDistance < 0.95 && (this.possession === null || this.possession.human)) {
+    if (human && humanDistance < 0.95 && ball.speed < 5 && (this.possession === null || this.possession.human)) {
       if (this.possession?.id !== human.id) {
         this.possession = human;
         this.possessionTime = 0;
@@ -640,8 +646,10 @@ export class MatchSim {
     if (this.possession) {
       const carrier = this.possession;
       const distance = Math.hypot(carrier.x - ball.x, carrier.z - ball.z);
-      // Мяч отскочил или улетел — владение кончилось
-      if (distance > 1.9 || (carrier.human && distance > 1.3)) {
+      // Мяч летит от удара — владения нет. Без этого ведение возвращало мяч
+      // под ногу в тот же кадр, и ни один удар в игре не долетал до ворот.
+      const flying = ball.speed > 5;
+      if (flying || distance > 1.9 || (carrier.human && distance > 1.3)) {
         this.possession = null;
         this.possessionTime = 0;
       } else {
@@ -653,6 +661,7 @@ export class MatchSim {
       let best: SimPlayer | null = null;
       let bestDistance = Infinity;
       for (const player of this.players) {
+        if (ball.speed > 5) break; // мяч в полёте — сначала догони
         if (player.kickCooldown > 0) continue;
         // Вратарь ловит мяч в своей штрафной, а не по всему полю
         if (player.role === 'gk' && !this.ballInOwnBox(player, ball)) continue;
@@ -677,6 +686,24 @@ export class MatchSim {
 
     const carrier = this.possession;
     if (!carrier) return;
+
+    // Герой вплотную к чужому мячу — отбирает сразу: иначе ИИ «приклеивает»
+    // мяч к ноге, и человек физически не может им завладеть.
+    if (human && !carrier.human && humanDistance < 1.0) {
+      const heroSpeed = this.human?.speed ?? 0;
+      const steals = humanDistance < 0.75 || heroSpeed > 0.6;
+      if (steals) {
+        this.possession = this.humanPlayer;
+        this.possessionTime = 0;
+        this.carryTimer = this.humanPlayer.reaction;
+        this.stallTimer = 0;
+        if (this.lastPossessionTeam !== this.humanPlayer.team) {
+          this.events.push({ type: 'tackle', team: this.humanPlayer.team, player: this.humanPlayer.id });
+        }
+        this.lastPossessionTeam = this.humanPlayer.team;
+        return;
+      }
+    }
 
     // Отбор: соперник в шаге от мяча может выбить его себе.
     // У героя отбирают реже — он не должен терять мяч от первого касания.
@@ -720,11 +747,12 @@ export class MatchSim {
     const central = Math.abs(ball.z - CENTER_Z) < 7;
     const pressured = this.nearestOpponent(carrier, ball) < 2.2;
 
-    if (toGoal < SHOOT_RANGE && central && this.random() < 0.38) {
-      // Разброс: иногда бьют мимо или прямо во вратаря — как живые
-      const spread = this.random() < 0.18 ? 0.5 : 0.24;
-      const aim = THREE_clamp((CENTER_Z - ball.z) * 0.07, -0.18, 0.18) + (this.random() - 0.5) * spread;
-      this.kickBall(carrier, ball, forward, aim, 0.5 + this.random() * 0.4, 16);
+    if (toGoal < SHOOT_RANGE && central && this.random() < 0.42) {
+      // Бьют в створ: разброс небольшой, иначе с 12 метров мяч уходит мимо
+      // ворот шириной 6 м, и матч превращается в перекат по центру.
+      const spread = this.random() < 0.15 ? 0.3 : 0.11;
+      const aim = THREE_clamp((CENTER_Z - ball.z) * 0.05, -0.14, 0.14) + (this.random() - 0.5) * spread;
+      this.kickBall(carrier, ball, forward, aim, 0.45 + this.random() * 0.3, 17);
       this.events.push({ type: 'shot', team: carrier.team, player: carrier.id, power: 0.85 });
       return;
     }
@@ -766,6 +794,14 @@ export class MatchSim {
       }
       void dt;
       return;
+    }
+
+    // Мяч в полёте от удара — не приклеиваем: удар должен долететь
+    if (ball.speed > 2.6) return;
+    // Герой в шаге — мяч не приклеиваем: пусть решает физика и его корпус
+    if (this.human) {
+      const heroDistance = Math.hypot(this.human.x - ball.x, this.human.z - ball.z);
+      if (heroDistance < 0.7) return;
     }
 
     const forwardX = -Math.sin(carrier.yaw);

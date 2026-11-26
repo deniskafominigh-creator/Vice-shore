@@ -33,15 +33,18 @@ export interface FootballPlayer {
 }
 
 const GRAVITY = 16;
-const ROLL_FRICTION = 2.4;
-const AIR_FRICTION = 0.35;
+/** Трение качения. Было 2,4 — мяч вставал через 6,5 м, и с 32-метрового поля
+ *  в ворота было не попасть ни герою, ни ИИ (задача 22). 0,6 даёт честные
+ *  ~28 м хода при полном ударе: с центра поля мяч доходит до ворот. */
+const ROLL_FRICTION = 0.45;
+const AIR_FRICTION = 0.18;
 const BOUNCE = 0.42;
 /** Дальность удара: ближе этого расстояния Space бьёт по мячу, а не прыгает. */
 export const KICK_RANGE = 1.35;
 /** Сколько секунд копится полная сила удара. */
 const CHARGE_FULL_TIME = 0.9;
-const MIN_KICK = 5.5;
-const MAX_KICK = 19;
+const MIN_KICK = 6;
+const MAX_KICK = 23;
 const KICK_LIFT = 0.32;
 
 export class Football {

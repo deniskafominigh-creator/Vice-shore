@@ -466,6 +466,17 @@ export class Game {
         return island.groundHeightAt(x, z) + (onPitch ? 0.05 : 0);
       },
       onGoal: (home, away) => {
+        // Идёт матч — счёт ведёт он: гол уходит в симуляцию, табло и HUD
+        // обновляет FootballMatch. Иначе счёт матча оставался бы 0:0.
+        if (this.match?.isRunning) {
+          this.match.handleFootballGoal(home, away);
+          // Табло в чаше показывает счёт матча, а не общий счёт мяча за день
+          const score = this.match.score;
+          island.stadium.scoreboard.setScore(score.home, score.away);
+          this.bus.emit('football:goal', { home: score.home, away: score.away });
+          this.matchPlayed = true;
+          return;
+        }
         island.stadium.scoreboard.setScore(home, away);
         // 0:0 — это сброс перед матчем, а не гол.
         if (home + away > 0) {
@@ -661,6 +672,7 @@ export class Game {
         onFinished: (home, away) => this.finishMatch(home, away),
       });
     }
+    island.stadium.scoreboard.setScore(0, 0);
     this.match.start();
     this.ui.flashMission(`19:00 · свисток! Матч до ${MATCH.goalsToWin} голов`, 'success');
     this.audio.playWhistle(false);

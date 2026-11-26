@@ -82,6 +82,10 @@ export class FootballMatch {
     this.prepare();
     this.options.football.setAutoCentre(false);
     this.options.football.reset(true);
+    // Мяч уже мог побывать в сетке до матча (миссия «два гола»): берём его
+    // текущий счёт за точку отсчёта, иначе первый гол матча уедет не той команде.
+    this.lastHome = this.options.football.home;
+    this.lastAway = this.options.football.away;
     this.sim.start();
     this.running = true;
     this.finished = false;

@@ -46,6 +46,9 @@ export class StreetNpc {
   private waveTimer = 0;
   private lookYaw = 0;
   private greetCooldown = 0;
+  /** Здоровается не каждый: кто-то кивнёт, кто-то пройдёт мимо. */
+  readonly greetChance: number;
+  private nearHero = false;
   private speed01 = 0;
   private yaw = 0;
   private readonly tmpQuat = new THREE.Quaternion();
@@ -57,6 +60,7 @@ export class StreetNpc {
     route: StreetRoute,
     name: string,
     groundHeightAt: (x: number, z: number) => number,
+    greetChance = 0.5,
   ) {
     this.hero = new RiggedHero(cloneGltfForNpc(gltf));
     this.hero.recolourOutfit(palette, 512);
@@ -69,6 +73,7 @@ export class StreetNpc {
     this.speed = route.speed;
     this.yawBias = route.yawBias ?? 0;
     this.groundHeightAt = groundHeightAt;
+    this.greetChance = greetChance;
 
     const grab = (boneName: string): { bone: THREE.Bone; rest: THREE.Quaternion } | null => {
       const bone = this.hero.rig.bones.get(boneName);
@@ -173,10 +178,12 @@ export class StreetNpc {
       this.spine.bone.quaternion.copy(this.spine.rest).multiply(q);
     }
 
-    // Возвращаем «здоровается» один раз за подход
-    const greeted = near && this.canGreet;
-    if (greeted) this.greet();
-    return greeted;
+    // Здороваемся один раз за подход и не все: иначе на улице получается хор.
+    // Решение принимает StreetLife (там общий лимит на реплики), а житель
+    // только сообщает, что готов поздороваться.
+    const entered = near && !this.nearHero;
+    this.nearHero = near;
+    return entered && this.canGreet && Math.random() < this.greetChance;
   }
 
   private turnToward(current: number, target: number, dt: number, rate: number): number {

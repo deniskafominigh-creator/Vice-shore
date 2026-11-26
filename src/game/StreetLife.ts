@@ -17,25 +17,35 @@ import type { VoiceBank, VoiceLine } from './VoiceBank';
  *  житель в неё не пойдёт (иначе он «въедет» в стену, и это видно).
  */
 
-const ROUTES: ReadonlyArray<{ route: StreetRoute; who: 'man' | 'woman'; name: string }> = [
+const ROUTES: ReadonlyArray<{
+  route: StreetRoute;
+  who: 'man' | 'woman';
+  name: string;
+  /** Насколько охотно здоровается: у каждого свой характер. */
+  greetChance: number;
+}> = [
   {
     name: 'сосед в синей куртке',
     who: 'man',
+    greetChance: 0.6,
     route: { points: [[-16, 25.2], [-4, 25.4], [6, 25.2]], speed: 1.25 },
   },
   {
     name: 'прохожая с зонтом',
     who: 'woman',
+    greetChance: 0.5,
     route: { points: [[12, 26.9], [2, 27.1], [-9, 26.9]], speed: 1.05 },
   },
   {
     name: 'рыбак с удочкой',
     who: 'man',
+    greetChance: 0.4,
     route: { points: [[-2, 24.4], [9, 24.6], [18, 24.4]], speed: 1.15 },
   },
   {
     name: 'девушка с пляжной сумкой',
     who: 'woman',
+    greetChance: 0.55,
     route: { points: [[20, 26.4], [14, 26.6], [22, 27.0]], speed: 1.35 },
   },
 ];
@@ -57,6 +67,8 @@ export class StreetLife {
   private clock = 0;
   private greetingIndex = 0;
   private lastSpeaker = '';
+  /** Общий лимит: на улице звучит одна реплика за раз, а не четыре сразу. */
+  private nextGreetAt = 0;
 
   constructor(
     private readonly gltf: GLTF,
@@ -84,6 +96,7 @@ export class StreetLife {
         { ...spec.route, points },
         spec.name,
         this.island.groundHeightAt,
+        spec.greetChance,
       );
       this.npcs.push(npc);
       this.scene.add(npc.group);
@@ -102,8 +115,11 @@ export class StreetLife {
       const visible = distance < 50;
       if (npc.group.visible !== visible) npc.group.visible = visible;
       if (!visible) continue;
-      const greeted = npc.update(dt, playerPosition);
-      if (greeted) this.greet(npc);
+      const wants = npc.update(dt, playerPosition);
+      if (!wants) continue;
+      if (this.clock < this.nextGreetAt) continue;
+      npc.greet();
+      this.greet(npc);
     }
   }
 
@@ -116,6 +132,7 @@ export class StreetLife {
     this.ui.showSubtitle(line.text);
     const duration = this.voices.duration(line);
     this.subtitleUntil = this.clock + Math.max(2.6, duration + 0.4);
+    this.nextGreetAt = this.clock + Math.max(4, duration + 1.5);
     this.voices.play(line);
   }
 

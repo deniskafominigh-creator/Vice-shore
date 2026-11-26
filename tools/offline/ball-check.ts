@@ -88,7 +88,7 @@ const kickOnce = (hold: number): number => {
 const shortKick = kickOnce(0.15);
 const longKick = kickOnce(0.9);
 check(longKick > shortKick + 4, 'долгая зарядка бьёт заметно сильнее');
-check(shortKick > 4 && longKick < 22, 'скорость удара в разумных пределах');
+check(shortKick > 4 && longKick < 26, 'скорость удара в разумных пределах');
 
 // ——— 2. сила набралась до 100% и сбросилась ———
 ball.reset();
@@ -106,7 +106,7 @@ ball.releaseCharge(kicker);
 const startZ = ball.position.z;
 step(0.6);
 const rolled = Math.abs(ball.position.z - startZ);
-step(8);
+step(14);
 check(rolled > 2, `мяч катится: ${rolled.toFixed(1)} м за 0,6 с`);
 check(ball.speed < 0.2, `мяч останавливается трением: ${ball.speed.toFixed(2)} м/с`);
 
