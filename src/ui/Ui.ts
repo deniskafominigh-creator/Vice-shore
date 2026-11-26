@@ -44,6 +44,9 @@ export class Ui {
   private readonly mission: MissionHud;
   private readonly fade: HTMLElement;
   private readonly hint: HTMLElement;
+  /** Индикатор силы удара по мячу (задача 16): полоска заполняется, пока держишь Space. */
+  private readonly kick: HTMLElement;
+  private readonly kickFill: HTMLElement;
   /** Субтитры реплик героя (задача 9). */
   private readonly subtitle: HTMLElement;
   private readonly debug: HTMLElement;
@@ -66,6 +69,13 @@ export class Ui {
     this.toasts = new Toasts();
     this.mission = new MissionHud();
     this.hint = el('div', { className: 'hint' });
+    this.kickFill = el('div', { className: 'kick-charge__fill' });
+    this.kick = el(
+      'div',
+      { className: 'kick-charge' },
+      el('span', { className: 'kick-charge__label', text: 'УДАР' }),
+      el('div', { className: 'kick-charge__track' }, this.kickFill),
+    );
     this.subtitle = el('div', { className: 'subtitle' });
     this.debug = el('div', { className: 'debug' });
     this.debug.style.display = 'none';
@@ -106,6 +116,7 @@ export class Ui {
     this.root.append(
       el('div', { className: 'ui-vignette' }),
       this.hint,
+      this.kick,
       this.subtitle,
       this.mission.root,
       this.touchHolder,
@@ -239,6 +250,18 @@ export class Ui {
     } else {
       this.hint.classList.remove('is-visible');
     }
+  }
+
+  /** Сила удара по мячу: null — полоска скрыта, 0…1 — заполнение. */
+  setKickCharge(value: number | null): void {
+    if (value === null) {
+      this.kick.classList.remove('is-visible');
+      return;
+    }
+    const clamped = Math.max(0, Math.min(1, value));
+    this.kick.classList.add('is-visible');
+    this.kickFill.style.width = `${(clamped * 100).toFixed(1)}%`;
+    this.kick.classList.toggle('is-full', clamped >= 0.995);
   }
 
   toast(text: string, tone: ToastTone = 'info'): void {

@@ -110,6 +110,14 @@ export class Character {
   /** Мяч в руках и бросок (задача 8). */
   private ballMode: 'none' | 'hold' | 'throw' = 'none';
   private ballPhase = 0;
+  /** Прыжок (задача 16): фаза полёта и вес позы. */
+  private jumpPhase = 0;
+  private jumpAirborne = false;
+  private jumpWeight = 0;
+  private wasAirborne = false;
+  private landing = 0;
+  private jumpTuck = 0;
+  private jumpLand = 0;
 
   constructor() {
     this.group.name = 'character';
@@ -217,6 +225,15 @@ export class Character {
     this.ballPhase = Math.max(0, Math.min(1, phase));
   }
 
+  /** Прыжок: 0 — отрыв, 0,5 — вершина, 1 — касание. Поза накладывается поверх
+   *  походки и покраски, с плавным входом и коротким приседом на приземлении. */
+  setJump(phase01: number, airborne: boolean): void {
+    this.jumpPhase = Math.max(0, Math.min(1, phase01));
+    this.jumpAirborne = airborne;
+    if (this.wasAirborne && !airborne) this.landing = 0.24;
+    this.wasAirborne = airborne;
+  }
+
   setPose(pose: CharacterPose): void {
     this.applyPose(pose, false);
   }
@@ -236,6 +253,11 @@ export class Character {
    *  поэтому переход «стоит → идёт → бежит» не рвётся. */
   update(dt: number): void {
     const smoothing = this.debug ? 6 : 12;
+    // Прыжок: вес позы и огибающие полёта/приседания
+    if (this.landing > 0) this.landing = Math.max(0, this.landing - dt);
+    this.jumpWeight = damp(this.jumpWeight, this.jumpAirborne || this.landing > 0 ? 1 : 0, 16, dt);
+    this.jumpTuck = this.jumpAirborne ? Math.sin(Math.PI * this.jumpPhase) : 0;
+    this.jumpLand = Math.min(1, this.landing / 0.24);
     this.elapsed += dt;
     const breath = Math.sin(this.elapsed * 1.35);
     const sway = Math.sin(this.elapsed * 0.5);
@@ -258,6 +280,7 @@ export class Character {
       if (this.locoBlend > 0.002) this.applyWalk(euler, name);
       if (this.paintActive) Character.applyPaintPose(euler, name, this.paintHeight);
       if (this.ballMode !== 'none') Character.applyBallPose(euler, name, this.ballMode, this.ballPhase);
+      if (this.jumpWeight > 0.004) Character.applyJumpPose(euler, name, this.jumpTuck, this.jumpLand, this.jumpWeight);
 
       Character.scratchQuat.setFromEuler(euler);
       bone.quaternion.slerp(Character.scratchQuat, 1 - Math.exp(-smoothing * dt));
@@ -286,6 +309,26 @@ export class Character {
       hips.position.y += (targetY - hips.position.y) * k;
       hips.position.x += (targetX - hips.position.x) * k;
     }
+  }
+
+  /** Поза прыжка в локальных эйлерах рига: бедро вперёд (+X), колено назад (−X),
+   *  корпус вперёд, руки вверх. Знаки совпадают с позой «присед» из POSES. */
+  private static applyJumpPose(
+    euler: THREE.Euler,
+    name: string,
+    tuck: number,
+    land: number,
+    weight: number,
+  ): void {
+    const lift = (0.62 * tuck + 0.42 * land) * weight;
+    const knee = -(1.15 * tuck + 0.95 * land) * weight;
+    const lean = (0.14 * tuck + 0.2 * land) * weight;
+    const arm = -(1.45 * tuck - 0.5 * land) * weight;
+    if (name === 'thigh_l' || name === 'thigh_r') euler.x += lift;
+    else if (name === 'shin_l' || name === 'shin_r') euler.x += knee;
+    else if (name === 'spine_01') euler.x += lean;
+    else if (name === 'spine_02') euler.x += lean * 0.5;
+    else if (name === 'upperarm_l' || name === 'upperarm_r') euler.x += arm;
   }
 
   /** Походка: бедро качает ногу, колено подгибается в переносе, корпус скручивается.

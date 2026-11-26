@@ -10,6 +10,7 @@ import { buildGround } from '../../src/world/island/Ground';
 import { buildFence } from '../../src/world/island/Fence';
 import { buildProps, buildDistantShore } from '../../src/world/island/Props';
 import { buildTown } from '../../src/world/island/Town';
+import { buildStadium } from '../../src/world/island/Stadium';
 import { auditScene } from '../../src/world/SceneAudit';
 
 /** Минимальный DOM для CanvasTexture и маски покраски (WebGL не нужен). */
@@ -78,6 +79,7 @@ modules.push(['fence', buildFence(m, c)]);
 modules.push(['props', buildProps(m)]);
 modules.push(['distantShore', buildDistantShore()]);
 modules.push(['town', buildTown(m, c).group]);
+modules.push(['stadium', buildStadium(m, c).group]);
 
 let total = 0;
 for (const [name, node] of modules) {

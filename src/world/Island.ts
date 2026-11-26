@@ -11,6 +11,7 @@ import { buildProps, buildDistantShore } from './island/Props';
 import { buildVegetation, type VegetationResult } from './island/Vegetation';
 import { buildRenovation, type RenovationResult } from './island/Renovation';
 import { buildTown, type TownResult } from './island/Town';
+import { buildStadium, type StadiumResult } from './island/Stadium';
 import { buildGrass, type GrassResult } from './island/GrassField';
 import { mergeStaticMeshes } from './island/mergeStatic';
 import type { AuditNode } from './SceneAudit';
@@ -44,6 +45,8 @@ export class Island {
   readonly renovation: RenovationResult;
   /** Посёлок из пяти домов вокруг виллы (задача 13). */
   readonly town: TownResult;
+  /** Стадион в конце улицы (задача 16): чаша, поле, ворота, табло, касса. */
+  readonly stadium: StadiumResult;
   /** Поле травы: один InstancedMesh с ветром (задача 13). */
   readonly grass: GrassResult;
   /** Всего предметов декорации на острове — для отчёта о детализации. */
@@ -79,8 +82,10 @@ export class Island {
 
     // ——— посёлок (задача 13): пять домов вокруг старой виллы ———
     this.town = buildTown(this.materials, this.collisions);
+    // Стадион строится до травы: его чаша, площадь и аллея тоже не засеиваются.
+    this.stadium = buildStadium(this.materials, this.collisions);
     // Трава сеется после домов: занятые участки, дорожки и улица остаются чистыми
-    this.grass = buildGrass(this.town.occupied, 9000);
+    this.grass = buildGrass([...this.town.occupied, ...this.stadium.clearings], 9000);
 
     this.group.add(
       ground,
@@ -92,6 +97,7 @@ export class Island {
       props,
       this.vegetation.group,
       this.town.group,
+      this.stadium.group,
       this.grass.group,
       distantShore,
     );
@@ -107,6 +113,11 @@ export class Island {
       mergeStaticMeshes(props, { labelRoot: this.group }),
       mergeStaticMeshes(this.court.group, { labelRoot: this.group, skip: ['court-rim', 'court-net'] }),
       mergeStaticMeshes(this.town.group, { labelRoot: this.group }),
+      // Табло и таблички склеивать нельзя: на текстуры ссылается игровой код.
+      mergeStaticMeshes(this.stadium.group, {
+        labelRoot: this.group,
+        skip: ['stadium-scoreboard-face', 'stadium-ticket-sign-face', 'stadium-gate-sign-face'],
+      }),
       mergeStaticMeshes(ground, { labelRoot: this.group }),
     ];
     this.mergeStats = {

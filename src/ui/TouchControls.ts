@@ -322,14 +322,19 @@ export class TouchControls {
   }
 
   private bindJump(): void {
+    // Кнопка ведёт себя как пробел: короткий тап — прыжок, удержание рядом
+    // с мячом — зарядка удара (задача 16). Поэтому здесь именно удержание,
+    // а не «тап»: игра сама разбирает, что делать с нажатием.
     this.jumpButton.addEventListener('pointerdown', (event) => {
       event.preventDefault();
       event.stopPropagation();
       this.jumpButton.classList.add('is-pressed');
-      // Тот же код, что и пробел: логика прыжка одна для всех устройств.
-      this.options.input.tapVirtualKey('Space');
+      this.options.input.setVirtualKey('Space', true);
     });
-    const release = (): void => this.jumpButton.classList.remove('is-pressed');
+    const release = (): void => {
+      this.jumpButton.classList.remove('is-pressed');
+      this.options.input.setVirtualKey('Space', false);
+    };
     this.jumpButton.addEventListener('pointerup', release);
     this.jumpButton.addEventListener('pointercancel', release);
     this.jumpButton.addEventListener('lostpointercapture', release);

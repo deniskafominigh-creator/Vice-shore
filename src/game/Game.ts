@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Assets, type LoadedAssets } from '../core/Assets';
 import { AudioSystem } from '../core/Audio';
-import { DEBUG, ISLAND, QUALITY_PRESETS, type QualityLevel } from '../core/Config';
+import { DEBUG, ISLAND, QUALITY_PRESETS, STADIUM, type QualityLevel } from '../core/Config';
 import { EventBus } from '../core/EventBus';
 import type { GameEventMap } from '../core/Events';
 import { GameStateMachine } from '../core/GameStateMachine';
@@ -25,16 +25,20 @@ import { QuestSystem } from './QuestSystem';
 import { DialogueSystem } from './DialogueSystem';
 import { PaintMission } from './PaintMission';
 import { BallMission } from './BallMission';
+import { Football } from './Football';
 
 const DEFAULT_BOUNDS = { minX: -13, maxX: 13, minZ: -10, maxZ: 10 } as const;
 
 /** Подсказка под схему управления (задача 11). */
 const HINTS = {
   keyboard:
-    'WASD — идти · Shift — бег · Space — прыжок · мышь — обзор · колесо — приблизить · Esc — пауза',
+    'WASD — идти · Shift — бег · Space — прыжок · у мяча держи Space — удар · мышь — обзор · Esc — пауза',
   touch:
-    'Стик слева — идти (до упора — бег) · «ПРЫЖОК» — прыгать · свайп — обзор · «Держать» — красить и бросать · Ⓔ — действие · II — пауза',
+    'Стик — идти · «ПРЫЖОК» — прыгать, у мяча держать — удар · свайп — обзор · «Держать» — красить и бросать · Ⓔ — действие · II — пауза',
 } as const;
+
+/** Где герой относительно стадиона (задача 16): подсказки при входе. */
+type StadiumZone = 'outside' | 'plaza' | 'pitch';
 
 /** Точка сборки всего: рендерер, мир, интерфейс, звук, состояния.
  *  Владеет ресурсами и освобождает их в dispose(). */
@@ -52,6 +56,14 @@ export class Game {
   paintMission: PaintMission | null = null;
   /** Вторая миссия: мяч, бросок, два гола (задача 8). */
   ballMission: BallMission | null = null;
+  /** Мяч на стадионе с физикой и счётом (задача 16). */
+  football: Football | null = null;
+  /** Идёт зарядка удара (Space зажали рядом с мячом). */
+  private kickCharging = false;
+  private stadiumZone: StadiumZone = 'outside';
+  /** Билет куплен в кассе (необязательный шаг: пройти мимо можно). */
+  private hasTicket = false;
+  private boothPrompted = false;
   /** Озвучка героя (задача 9). */
   dialogues: DialogueSystem | null = null;
   /** Определение устройства: телефон/планшет/компьютер (задача 11). */
@@ -221,6 +233,8 @@ export class Game {
       }
       this.character?.group.position.copy(this.player.position);
       if (this.character) this.character.group.rotation.y = this.player.yaw;
+      // Начало матча: счёт с нуля, мяч на центре.
+      this.football?.reset(false);
     }
     await this.machine.change('playing');
   }
@@ -239,6 +253,10 @@ export class Game {
     const current = this.machine.current;
     if ((current !== 'paused' && current !== 'playing') || this.machine.isBusy) return;
     this.persistPlayerState();
+    // Табло живёт только в игре: в меню на нём нейтральные 0:0.
+    this.football?.reset(false);
+    this.kickCharging = false;
+    this.ui.setKickCharge(null);
     await this.machine.change('menu');
   }
 
@@ -252,6 +270,7 @@ export class Game {
     this.audio.dispose();
     this.paintMission?.dispose();
     this.ballMission?.dispose();
+    this.football?.dispose();
     this.character?.dispose();
     this.world?.dispose();
     this.assets.dispose();
@@ -288,6 +307,23 @@ export class Game {
     this.paintMission = new PaintMission(this);
     this.paintMission.restore();
 
+    // ——— стадион (задача 16): мяч, счёт, табло —————————————————————
+    this.football?.dispose();
+    island.stadium.scoreboard.setScore(0, 0);
+    this.kickCharging = false;
+    this.stadiumZone = 'outside';
+    this.football = new Football({
+      parent: island.group,
+      stadium: island.stadium,
+      collisions: island.collisions,
+      groundHeightAt: (x, z) => island.groundHeightAt(x, z),
+      onGoal: (home, away) => {
+        island.stadium.scoreboard.setScore(home, away);
+        // 0:0 — это сброс перед матчем, а не гол.
+        if (home + away > 0) this.ui.toast(`Гол! ${home}:${away}`, 'success');
+      },
+    });
+
     // ——— миссия 02: мяч и два гола (задача 8) —————————————————————
     this.ballMission?.dispose();
     this.ballMission = new BallMission(this);
@@ -315,17 +351,96 @@ export class Game {
       strafe: this.input.axis('KeyA', 'KeyD'),
       run: this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight'),
     };
-    // Прыжок — по нажатию, а не по удержанию: Space на клавиатуре, кнопка
-    // «ПРЫЖОК» на сенсорном экране (она шлёт тот же код 'Space').
-    if (this.input.wasPressed('Space')) this.player.jump();
+    // Space у мяча — зарядка удара, в остальных случаях — прыжок. Одна кнопка
+    // на оба действия: рядом с мячом прыгать нечем, зато удар всегда под рукой.
+    const me = {
+      x: this.player.position.x,
+      y: this.player.position.y,
+      z: this.player.position.z,
+      yaw: this.player.yaw,
+      speed: this.player.speed,
+      radius: this.player.radius,
+    };
+    const football = this.football;
+    const spacePressed = this.input.wasPressed('Space');
+    if (spacePressed) {
+      if (football && !this.player.isAirborne && football.startCharge(me)) this.kickCharging = true;
+      else this.player.jump();
+    }
 
     this.player.update(dt, intent, this.thirdPersonCamera.yaw, island);
+
+    if (football) {
+      // Отпустили Space — удар накопленной силы.
+      if (this.kickCharging && !this.input.isDown('Space')) {
+        const power = football.releaseCharge(me);
+        this.kickCharging = false;
+        if (power > 0.75) this.ui.toast('Хлёсткий удар', 'info');
+      }
+      football.update(dt, me);
+      this.ui.setKickCharge(this.kickCharging ? football.charge01 : null);
+      this.updateStadiumZone();
+      this.updateTicketBooth();
+    }
 
     character.group.position.copy(this.player.position);
     character.group.rotation.y = this.player.yaw;
     character.setLocomotion(this.player.speed01, this.player.phase);
+    // Прыжок: клипа в модели нет — поза строится по фазе полёта (задача 16).
+    character.setJump(this.player.jumpPhase01, this.player.isAirborne);
 
     this.thirdPersonCamera.update(dt, this.player.position, island.collisions);
+  }
+
+  /** Вход на стадион: при первом заходе на площадь и на поле — подсказка.
+   *  Зоны считаются по константам чаши, поэтому не разъезжаются с геометрией. */
+  private updateStadiumZone(): void {
+    const { centerX, centerZ, width, depth, plazaWidth, plazaDepth } = STADIUM;
+    const x = this.player.position.x;
+    const z = this.player.position.z;
+    const insidePitch =
+      Math.abs(x - centerX) < width / 2 - 2 && Math.abs(z - centerZ) < depth / 2 - 2;
+    const onPlaza =
+      x > centerX + width / 2 - 1 &&
+      x < centerX + width / 2 + plazaWidth + 1 &&
+      Math.abs(z - centerZ) < plazaDepth / 2 + 1;
+    const zone: StadiumZone = insidePitch ? 'pitch' : onPlaza ? 'plaza' : 'outside';
+    if (zone === this.stadiumZone) return;
+    this.stadiumZone = zone;
+    if (zone === 'plaza') {
+      this.ui.toast('«Вайс Шор Арена» · касса слева, вход — через турникеты', 'info');
+    } else if (zone === 'pitch') {
+      this.ui.toast('Поле · мяч в центре: подойди и держи Space для удара', 'info');
+    }
+  }
+
+  /** Касса: билет — необязательный шаг, но купить его можно и приятно.
+   *  Подсказка показывается один раз за подход, чтобы не забивать экран. */
+  private updateTicketBooth(): void {
+    const boothX = STADIUM.centerX + STADIUM.width / 2 + STADIUM.plazaWidth / 2;
+    const boothZ = STADIUM.centerZ - STADIUM.plazaDepth / 2 + 0.5;
+    const near =
+      Math.abs(this.player.position.x - boothX) < 3.4 &&
+      Math.abs(this.player.position.z - boothZ) < 2.2;
+    if (!near) {
+      this.boothPrompted = false;
+      return;
+    }
+    if (!this.boothPrompted) {
+      this.boothPrompted = true;
+      this.ui.toast(
+        this.hasTicket ? 'Касса · билет уже куплен, проходи к турникетам' : 'Касса · E — купить билет (500 ₽)',
+        'info',
+      );
+    }
+    if (this.input.wasPressed('KeyE')) {
+      if (this.hasTicket) {
+        this.ui.toast('Билет уже в кармане', 'info');
+      } else {
+        this.hasTicket = true;
+        this.ui.toast('Билет куплен · 500 ₽ · проходи к турникетам', 'success');
+      }
+    }
   }
 
   /** Аудит сцены (задача 10): мерцание, наложения, висящие предметы, осиротевшие

@@ -721,6 +721,61 @@ body {
   opacity: 1;
 }
 
+/* Индикатор силы удара (задача 16): полоска над подсказкой. */
+.kick-charge {
+  position: fixed;
+  left: 50%;
+  bottom: 74px;
+  transform: translateX(-50%) translateY(6px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 176, 46, 0.35);
+  background: rgba(6, 17, 24, 0.72);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transition: opacity 0.12s var(--ease), transform 0.12s var(--ease);
+  pointer-events: none;
+  z-index: 14;
+}
+
+.kick-charge.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.kick-charge__label {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: rgba(255, 176, 46, 0.9);
+}
+
+.kick-charge__track {
+  width: 148px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(242, 246, 248, 0.16);
+  overflow: hidden;
+}
+
+.kick-charge__fill {
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffd36b, #ffb02e 62%, #ff6a2e);
+  transition: width 0.05s linear;
+}
+
+.kick-charge.is-full .kick-charge__track {
+  box-shadow: 0 0 12px rgba(255, 176, 46, 0.85);
+}
+
+.kick-charge.is-full .kick-charge__fill {
+  background: linear-gradient(90deg, #ffe08a, #ff7a2e);
+}
+
 .toasts {
   position: fixed;
   left: 50%;

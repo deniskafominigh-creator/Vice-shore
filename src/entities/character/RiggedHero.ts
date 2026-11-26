@@ -31,6 +31,8 @@ type ClipKey = keyof typeof CLIP;
 /** Изгиб пальцев по суставам (радианы вокруг локальной X). */
 const FINGER_CURL: Readonly<Record<1 | 2 | 3, number>> = { 1: 0.95, 2: 1.25, 3: 0.8 };
 const FINGER_RE = /_(l|r)_0([123])$/;
+/** Сколько длится присед после приземления, с. */
+const LANDING_TIME = 0.24;
 
 export class RiggedHero implements HeroCharacter {
   readonly group = new THREE.Group();
@@ -60,6 +62,21 @@ export class RiggedHero implements HeroCharacter {
   private ballMode: 'none' | 'hold' | 'throw' = 'none';
   private ballPhase = 0;
   private grip = 0;
+
+  // ——— прыжок (задача 16): клипа нет, поза строится кодом ———
+  private jumpPhase = 0;
+  private jumpAirborne = false;
+  private wasAirborne = false;
+  private jumpWeight = 0;
+  /** Сколько секунд ещё держится присед после касания. */
+  private landing = 0;
+  private readonly tmpA = new THREE.Vector3();
+  private readonly tmpB = new THREE.Vector3();
+  private readonly tmpDir = new THREE.Vector3();
+  private readonly tmpAxis = new THREE.Vector3();
+  private readonly tmpFwd = new THREE.Vector3();
+  private readonly quatA = new THREE.Quaternion();
+  private readonly quatB = new THREE.Quaternion();
 
   constructor(gltf: GLTF) {
     this.group.name = 'character';
@@ -194,6 +211,14 @@ export class RiggedHero implements HeroCharacter {
     this.ballPhase = clamp(phase, 0, 1);
   }
 
+  setJump(phase01: number, airborne: boolean): void {
+    this.jumpPhase = clamp(phase01, 0, 1);
+    this.jumpAirborne = airborne;
+    // Касание земли: короткий присед, иначе прыжок «щёлкает» в стойку.
+    if (this.wasAirborne && !airborne) this.landing = LANDING_TIME;
+    this.wasAirborne = airborne;
+  }
+
   setPose(pose: CharacterPose): void {
     // У привезённой модели нет отдельных поз осмотра — крутим её в инспекторе целиком.
     this.pose = pose;
@@ -264,6 +289,7 @@ export class RiggedHero implements HeroCharacter {
 
     this.mixer.update(dt);
     this.applyGrip(dt);
+    this.applyJump(dt);
 
     // Мяч в руках — обе кисти, валик — правая.
     void this.phase;
@@ -284,6 +310,73 @@ export class RiggedHero implements HeroCharacter {
   }
 
   // ——— внутреннее ————————————————————————————————————————————
+
+  /** Поза прыжка поверх клипов (задача 16). Оси считаются по самому скелету:
+   *  направление кости берётся из мировых позиций родителя и ребёнка, «вперёд» —
+   *  из поворота группы. Поэтому поза не зависит от того, как модель развёрнута
+   *  внутри (в glTF герой смотрит в +Z, в игре — в −Z). */
+  private applyJump(dt: number): void {
+    if (this.landing > 0) this.landing = Math.max(0, this.landing - dt);
+    const target = this.jumpAirborne || this.landing > 0 ? 1 : 0;
+    this.jumpWeight = damp(this.jumpWeight, target, 16, dt);
+    if (this.jumpWeight < 0.004) return;
+
+    const w = this.jumpWeight;
+    const tuck = this.jumpAirborne ? Math.sin(Math.PI * clamp(this.jumpPhase, 0, 1)) : 0;
+    const land = LANDING_TIME > 0 ? clamp(this.landing / LANDING_TIME, 0, 1) : 0;
+
+    // Куда смотрит герой: у группы только рыскание, «вперёд» = −Z группы.
+    this.tmpFwd.set(0, 0, -1).applyQuaternion(this.group.getWorldQuaternion(this.quatA)).normalize();
+
+    const lift = (0.62 * tuck + 0.42 * land) * w; // бедро вперёд: колени вверх
+    const knee = -(1.15 * tuck + 0.95 * land) * w; // голень назад: сгиб колена
+    const lean = (0.14 * tuck + 0.2 * land) * w; // корпус вперёд на приседе
+    const arm = (1.45 * tuck - 0.5 * land) * w; // руки вверх-вперёд в полёте
+
+    for (const side of ['l', 'r'] as const) {
+      const thigh = this.rig.bones.get(`thigh_${side}`);
+      const shin = this.rig.bones.get(`shin_${side}`);
+      const thighAxis = this.limbAxis(thigh, shin);
+      if (thighAxis) this.bend(thigh, thighAxis, lift);
+      // Для голени ось та же (бедро → колено), знак противоположный: колено назад.
+      if (thighAxis) this.bend(shin, thighAxis, knee);
+
+      const upper = this.rig.bones.get(`upperarm_${side}`);
+      const fore = this.rig.bones.get(`forearm_${side}`);
+      const armAxis = this.limbAxis(upper, fore);
+      if (armAxis) this.bend(upper, armAxis, arm);
+    }
+
+    const spine = this.rig.bones.get('spine_01');
+    const spineChild = this.rig.bones.get('spine_02');
+    const spineAxis = this.limbAxis(spine, spineChild);
+    if (spineAxis) this.bend(spine, spineAxis, lean);
+  }
+
+  /** Ось сгиба: кость × вперёд. Направление кости — из позиций в мире,
+   *  поэтому ориентация модели внутри группы не важна. */
+  private limbAxis(bone: THREE.Bone | undefined, child: THREE.Bone | undefined): THREE.Vector3 | null {
+    if (!bone || !child) return null;
+    bone.updateWorldMatrix(true, false);
+    child.updateWorldMatrix(true, false);
+    bone.getWorldPosition(this.tmpA);
+    child.getWorldPosition(this.tmpB);
+    this.tmpDir.copy(this.tmpB).sub(this.tmpA);
+    if (this.tmpDir.lengthSq() < 1e-8) return null;
+    this.tmpDir.normalize();
+    this.tmpAxis.copy(this.tmpDir).cross(this.tmpFwd);
+    if (this.tmpAxis.lengthSq() < 1e-6) return null; // кость смотрит вперёд — оси нет
+    return this.tmpAxis.normalize().clone();
+  }
+
+  /** Поворот кости на угол вокруг мировой оси: ось переводится в локальную систему. */
+  private bend(bone: THREE.Bone | undefined, worldAxis: THREE.Vector3, angle: number): void {
+    if (!bone || Math.abs(angle) < 1e-4) return;
+    bone.updateWorldMatrix(true, false);
+    const world = bone.getWorldQuaternion(this.quatA);
+    const local = this.tmpDir.copy(worldAxis).applyQuaternion(world.invert()).normalize();
+    bone.quaternion.multiply(this.quatB.setFromAxisAngle(local, angle));
+  }
 
   /** Пальцы поверх клипов: клипы анимируют все 53 кости, поэтому хват доводим
    *  пост-умножением кватерниона уже после `mixer.update`. */

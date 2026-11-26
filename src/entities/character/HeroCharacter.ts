@@ -16,6 +16,9 @@ export interface HeroCharacter {
   setLocomotion(speed01: number, phase: number): void;
   setPainting(active: boolean, height01?: number): void;
   setBall(mode: 'none' | 'hold' | 'throw', phase?: number): void;
+  /** Прыжок (задача 16): фазa полёта 0…1 (0 — отрыв, 1 — касание) и признак «в воздухе».
+   *  Клипа Jump в привезённой модели нет, поэтому поза строится кодом поверх микшера. */
+  setJump(phase01: number, airborne: boolean): void;
   setPose(pose: CharacterPose): void;
   setDebug(visible: boolean, wireframe?: boolean): void;
   update(dt: number): void;

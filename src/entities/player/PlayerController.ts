@@ -29,6 +29,13 @@ export class PlayerController {
     return this.airborne;
   }
 
+  /** Фаза прыжка 0…1 по вертикальной скорости: 0 — отрыв, 0,5 — вершина,
+   *  1 — касание. По ней анимация строит позу без отдельного таймера. */
+  get jumpPhase01(): number {
+    if (!this.airborne) return 0;
+    return clamp(0.5 * (1 - this.verticalVelocity / PlayerController.JUMP_SPEED), 0, 1);
+  }
+
   private static readonly WALK_SPEED = 1.85;
   private static readonly RUN_SPEED = 4.5;
   private static readonly ACCELERATION = 12;
