@@ -27,6 +27,12 @@ export interface GameEventMap {
   'ball:throw': { id: string };
   'ball:scored': { goals: number; total: number };
   'ball:missed': { goals: number };
+  /** Стадион (задача 17): вошёл на аллею/площадь, купил билет, ударил по мячу, забил. */
+  'stadium:entered': { x: number; z: number };
+  'stadium:ticket': { price: number };
+  'football:charge': { power: number };
+  'football:kick': { power: number };
+  'football:goal': { home: number; away: number };
   /** Герой молчит слишком долго — повод для idle-реплики (задача 9). */
   'voice:idle': { seconds: number };
   /** Реплика героя: под неё музыка приглушается (задача 9). */

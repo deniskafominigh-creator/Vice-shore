@@ -33,6 +33,8 @@ const FINGER_CURL: Readonly<Record<1 | 2 | 3, number>> = { 1: 0.95, 2: 1.25, 3: 
 const FINGER_RE = /_(l|r)_0([123])$/;
 /** Сколько длится присед после приземления, с. */
 const LANDING_TIME = 0.24;
+/** Скорость сглаживания углов прыжка, 1/с: выше — резче, ниже — «пластилин». */
+const POSE_SMOOTHING = 14;
 
 export class RiggedHero implements HeroCharacter {
   readonly group = new THREE.Group();
@@ -70,6 +72,12 @@ export class RiggedHero implements HeroCharacter {
   private jumpWeight = 0;
   /** Сколько секунд ещё держится присед после касания. */
   private landing = 0;
+  /** Сглаженные углы позы: при частых прыжках фаза скачет, и без сглаживания
+   *  ноги «колбасит» — кресло-качалка вместо прыжка. */
+  private poseLift = 0;
+  private poseKnee = 0;
+  private poseLean = 0;
+  private poseArm = 0;
   private readonly tmpA = new THREE.Vector3();
   private readonly tmpB = new THREE.Vector3();
   private readonly tmpDir = new THREE.Vector3();
@@ -214,8 +222,14 @@ export class RiggedHero implements HeroCharacter {
   setJump(phase01: number, airborne: boolean): void {
     this.jumpPhase = clamp(phase01, 0, 1);
     this.jumpAirborne = airborne;
-    // Касание земли: короткий присед, иначе прыжок «щёлкает» в стойку.
-    if (this.wasAirborne && !airborne) this.landing = LANDING_TIME;
+    if (this.wasAirborne && !airborne) {
+      // Касание земли: короткий присед, иначе прыжок «щёлкает» в стойку.
+      this.landing = LANDING_TIME;
+    } else if (!this.wasAirborne && airborne) {
+      // Прыгнули сразу после касания — присед отменяем: иначе поза успевает
+      // уйти в присед и вернуться, и ноги «колбасит» при частых прыжках.
+      this.landing = 0;
+    }
     this.wasAirborne = airborne;
   }
 
@@ -319,7 +333,14 @@ export class RiggedHero implements HeroCharacter {
     if (this.landing > 0) this.landing = Math.max(0, this.landing - dt);
     const target = this.jumpAirborne || this.landing > 0 ? 1 : 0;
     this.jumpWeight = damp(this.jumpWeight, target, 16, dt);
-    if (this.jumpWeight < 0.004) return;
+    if (this.jumpWeight < 0.004) {
+      // Поза погашена — обнуляем углы, чтобы следующий прыжок начинался с нуля.
+      this.poseLift = 0;
+      this.poseKnee = 0;
+      this.poseLean = 0;
+      this.poseArm = 0;
+      return;
+    }
 
     const w = this.jumpWeight;
     const tuck = this.jumpAirborne ? Math.sin(Math.PI * clamp(this.jumpPhase, 0, 1)) : 0;
@@ -328,10 +349,18 @@ export class RiggedHero implements HeroCharacter {
     // Куда смотрит герой: у группы только рыскание, «вперёд» = −Z группы.
     this.tmpFwd.set(0, 0, -1).applyQuaternion(this.group.getWorldQuaternion(this.quatA)).normalize();
 
-    const lift = (0.62 * tuck + 0.42 * land) * w; // бедро вперёд: колени вверх
-    const knee = -(1.15 * tuck + 0.95 * land) * w; // голень назад: сгиб колена
-    const lean = (0.14 * tuck + 0.2 * land) * w; // корпус вперёд на приседе
-    const arm = (1.45 * tuck - 0.5 * land) * w; // руки вверх-вперёд в полёте
+    // Целевые углы сглаживаются: при быстром «прыжок-прыжок» фаза меняется
+    // скачком (1 → 0), и без сглаживания колени дёргаются в противофазе.
+    const rate = POSE_SMOOTHING;
+    this.poseLift = damp(this.poseLift, (0.62 * tuck + 0.42 * land) * w, rate, dt);
+    this.poseKnee = damp(this.poseKnee, -(1.15 * tuck + 0.95 * land) * w, rate, dt);
+    this.poseLean = damp(this.poseLean, (0.14 * tuck + 0.2 * land) * w, rate, dt);
+    this.poseArm = damp(this.poseArm, (1.45 * tuck - 0.5 * land) * w, rate, dt);
+
+    const lift = this.poseLift; // бедро вперёд: колени вверх
+    const knee = this.poseKnee; // голень назад: сгиб колена
+    const lean = this.poseLean; // корпус вперёд на приседе
+    const arm = this.poseArm; // руки вверх-вперёд в полёте
 
     for (const side of ['l', 'r'] as const) {
       const thigh = this.rig.bones.get(`thigh_${side}`);

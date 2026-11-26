@@ -231,6 +231,7 @@ export class Character {
     this.jumpPhase = Math.max(0, Math.min(1, phase01));
     this.jumpAirborne = airborne;
     if (this.wasAirborne && !airborne) this.landing = 0.24;
+    else if (!this.wasAirborne && airborne) this.landing = 0;
     this.wasAirborne = airborne;
   }
 

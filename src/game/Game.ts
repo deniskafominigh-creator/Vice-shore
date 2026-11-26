@@ -64,6 +64,8 @@ export class Game {
   /** Билет куплен в кассе (необязательный шаг: пройти мимо можно). */
   private hasTicket = false;
   private boothPrompted = false;
+  /** Герой уже на территории стадиона (для одноразового события входа). */
+  private atStadium = false;
   /** Озвучка героя (задача 9). */
   dialogues: DialogueSystem | null = null;
   /** Определение устройства: телефон/планшет/компьютер (задача 11). */
@@ -329,7 +331,10 @@ export class Game {
       onGoal: (home, away) => {
         island.stadium.scoreboard.setScore(home, away);
         // 0:0 — это сброс перед матчем, а не гол.
-        if (home + away > 0) this.ui.toast(`Гол! ${home}:${away}`, 'success');
+        if (home + away > 0) {
+          this.ui.toast(`Гол! ${home}:${away}`, 'success');
+          this.bus.emit('football:goal', { home, away });
+        }
       },
     });
 
@@ -374,8 +379,12 @@ export class Game {
     };
     const football = this.football;
     if (this.input.wasPressed('Space')) {
-      if (football && !this.player.isAirborne && football.startCharge(me)) this.kickCharging = true;
-      else this.player.jump();
+      if (football && !this.player.isAirborne && football.startCharge(me)) {
+        this.kickCharging = true;
+        this.bus.emit('football:charge', { power: 0 });
+      } else {
+        this.player.jump();
+      }
     }
 
     if (football) {
@@ -383,7 +392,10 @@ export class Game {
       if (this.kickCharging && !this.input.isDown('Space')) {
         const power = football.releaseCharge(me);
         this.kickCharging = false;
-        if (power > 0.75) this.ui.toast('Хлёсткий удар', 'info');
+        if (power > 0) {
+          this.bus.emit('football:kick', { power });
+          if (power > 0.75) this.ui.toast('Хлёсткий удар', 'info');
+        }
       }
       football.update(dt, me);
       this.ui.setKickCharge(this.kickCharging ? football.charge01 : null);
@@ -403,6 +415,16 @@ export class Game {
   /** Вход на стадион: при первом заходе на площадь и на поле — подсказка.
    *  Зоны считаются по константам чаши, поэтому не разъезжаются с геометрией. */
   private updateStadiumZone(): void {
+    const island = this.world?.island;
+    // Один раз при входе на аллею/площадь — событие для реплики «вот она, арена».
+    const place = island ? island.placeAt(this.player.position.x, this.player.position.z) : 'street';
+    if (place === 'stadium' && !this.atStadium) {
+      this.atStadium = true;
+      this.bus.emit('stadium:entered', { x: this.player.position.x, z: this.player.position.z });
+    } else if (place !== 'stadium') {
+      this.atStadium = false;
+    }
+
     const { centerX, centerZ, width, depth, plazaWidth, plazaDepth } = STADIUM;
     const x = this.player.position.x;
     const z = this.player.position.z;
@@ -447,6 +469,7 @@ export class Game {
       } else {
         this.hasTicket = true;
         this.ui.toast('Билет куплен · 500 ₽ · проходи к турникетам', 'success');
+        this.bus.emit('stadium:ticket', { price: 500 });
       }
     }
   }

@@ -12,6 +12,9 @@ import type { Game } from './Game';
  *   - музыка приглушается на время реплики (через `voice:started`/`voice:ended`);
  *   - нет файла — субтитры вместо звука (обязательный фолбэк). */
 
+/** Где реплика уместна (задача 17). `any` — везде. */
+export type DialoguePlace = 'any' | 'villa' | 'court' | 'stadium';
+
 export interface DialogueLine {
   readonly id: string;
   readonly text: string;
@@ -19,9 +22,10 @@ export interface DialogueLine {
   readonly priority: number;
   readonly cooldown: number;
   readonly file: string;
+  readonly place?: DialoguePlace;
 }
 
-const LINES: readonly DialogueLine[] = dialogues.lines;
+const LINES: readonly DialogueLine[] = dialogues.lines as readonly DialogueLine[];
 
 /** mp3 лежат в src/assets/voice: Vite отдаёт их URL, а при сборке инлайнит в один файл. */
 const CLIP_URLS: Record<string, string> = (() => {
@@ -68,6 +72,8 @@ export class DialogueSystem {
   private lastVoiceAt = 0;
   private nextIdleAt: number = RULES.idleDelay;
   private idleCursor = 0;
+  /** Курсоры вариантов: у одного триггера может быть несколько фраз (голы). */
+  private readonly variantCursor = new Map<string, number>();
   private subtitleVisible = false;
   private readonly cleanups: Array<() => void> = [];
   /** Время реплик — реальное: звук играет в реальном масштабе, а dt игрового цикла
@@ -106,10 +112,54 @@ export class DialogueSystem {
     on('quest:completed', (payload) => {
       if (payload.id === MISSION_02.id) this.play('win');
     });
+    on('stadium:entered', () => this.play('stadium_enter'));
+    on('stadium:ticket', () => this.play('stadium_ticket'));
+    on('football:charge', () => this.play('football_charge'));
+    on('football:kick', () => {
+      // Удар и гол не должны спорить: гол приоритетнее и перебьёт «пошла».
+      this.play('football_kick');
+    });
+    on('football:goal', () => this.playVariant('football:goal'));
     on('state:changed', (payload) => {
       if (payload.to !== 'playing') this.stop();
       if (payload.to === 'playing') this.lastVoiceAt = this.clock;
     });
+  }
+
+  /** Где сейчас герой. Отсюда фильтр реплик: на стадионе не звучит дом и кольцо. */
+  /** null — мир ещё не собран: тогда место неизвестно и фильтр не мешает. */
+  private get place(): DialoguePlace | null {
+    const island = this.game.world?.island;
+    if (!island) return null;
+    const point = this.game.player.position;
+    const place = island.placeAt(point.x, point.z);
+    return place === 'street' ? 'any' : place;
+  }
+
+  /** Звучит ли реплика в этом месте. */
+  private fits(line: DialogueLine): boolean {
+    const place = line.place ?? 'any';
+    if (place === 'any') return true;
+    const current = this.place;
+    if (current === null) return true;
+    // На улице и в других местах звучат только «везде»-реплики.
+    return place === current;
+  }
+
+  /** Одна из нескольких фраз одного триггера (по кругу), с учётом места.
+   *  Нужен для трёх фраз на гол: подряд одна и та же не повторяется. */
+  playVariant(trigger: string): boolean {
+    const candidates = LINES.filter((line) => line.trigger === trigger && this.fits(line));
+    if (candidates.length === 0) return false;
+    const cursor = this.variantCursor.get(trigger) ?? 0;
+    for (let attempt = 0; attempt < candidates.length; attempt += 1) {
+      const line = candidates[(cursor + attempt) % candidates.length];
+      const last = this.lastPlayed.get(line.id);
+      if (last !== undefined && this.clock - last < Math.max(6, line.cooldown)) continue;
+      this.variantCursor.set(trigger, (cursor + attempt + 1) % candidates.length);
+      return this.play(line.id);
+    }
+    return false;
   }
 
   /** Сколько реплик описано и сколько из них со звуком — для тестов и отладки. */
@@ -180,6 +230,8 @@ export class DialogueSystem {
   play(id: string): boolean {
     const line = LINES.find((item) => item.id === id);
     if (!line) return false;
+    // Реплика не про это место — молчим (задача 17: «краска сохнет» на стадионе).
+    if (!this.fits(line)) return false;
 
     const now = this.clock;
     const last = this.lastPlayed.get(id);
@@ -302,7 +354,7 @@ export class DialogueSystem {
   }
 
   private playIdle(): void {
-    const idle = LINES.filter((line) => line.trigger === 'idle');
+    const idle = LINES.filter((line) => line.trigger === 'idle' && this.fits(line));
     if (idle.length === 0) return;
     // По кругу, но с учётом cooldown: застрявшие реплики пропускаем
     for (let attempt = 0; attempt < idle.length; attempt += 1) {

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ISLAND, STADIUM, TOWN } from '../../core/Config';
 import type { IslandMaterials } from './IslandTextures';
 import type { CollisionWorld } from '../Colliders';
@@ -184,6 +185,31 @@ function createSignTexture(text: string, background: string, ink: string): THREE
   return texture;
 }
 
+/** Кресло трибуны: подушка, наклонная спинка, две боковины. Одна геометрия на все
+ *  места — дальше это InstancedMesh, поэтому детализация стоит один draw call. */
+function buildSeatGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+
+  const pan = new THREE.BoxGeometry(0.44, 0.07, 0.4);
+  pan.translate(0, 0.06, 0.03);
+  parts.push(pan);
+
+  const back = new THREE.BoxGeometry(0.44, 0.44, 0.06);
+  back.rotateX(-0.13);
+  back.translate(0, 0.29, -0.19);
+  parts.push(back);
+
+  for (const sx of [-1, 1] as const) {
+    const cheek = new THREE.BoxGeometry(0.05, 0.1, 0.36);
+    cheek.translate(sx * 0.215, 0.035, 0.02);
+    parts.push(cheek);
+  }
+
+  const merged = mergeGeometries(parts, false);
+  for (const part of parts) part.dispose();
+  return merged ?? new THREE.BoxGeometry(0.44, 0.1, 0.4);
+}
+
 export function buildStadium(materials: IslandMaterials, collisions: CollisionWorld): StadiumResult {
   const group = new THREE.Group();
   group.name = 'stadium';
@@ -256,7 +282,7 @@ export function buildStadium(materials: IslandMaterials, collisions: CollisionWo
 
   // ——— трибуны: четыре стороны, пять рядов ———
   /** Вход в чашу — с востока, сквозь восточную трибуну: в ней оставлен проход. */
-  const GATE_WIDTH = 7;
+  const GATE_WIDTH = 8;
   /** Отрезки вдоль оси трибуны (середина и длина) — у восточной их два. */
   const sideSegments = (side: 'north' | 'south' | 'east' | 'west'): Array<{ center: number; length: number }> => {
     const full = side === 'north' || side === 'south'
@@ -303,9 +329,11 @@ export function buildStadium(materials: IslandMaterials, collisions: CollisionWo
   buildStandSide('west');
   buildStandSide('east');
 
-  // ——— сиденья: три InstancedMesh по цветам (934 места) ———
-  const seatGeometry = new THREE.BoxGeometry(0.42, 0.1, 0.36);
-  const seatLegGeometry = new THREE.BoxGeometry(0.06, 0.32, 0.06);
+  // ——— сиденья: три InstancedMesh по цветам ———
+  // Кресло собрано из пяти деталей: подушка, спинка с наклоном, две боковины
+  // и опора. Раньше это была одна плоская плитка — на трибуне читался «частокол».
+  const seatGeometry = buildSeatGeometry();
+  const seatLegGeometry = new THREE.BoxGeometry(0.06, 0.34, 0.06);
   const seatPlacements: Array<{ x: number; y: number; z: number; rotY: number; color: 'home' | 'away' | 'empty' }> = [];
 
   const placeSeats = (side: 'north' | 'south' | 'east' | 'west'): void => {
@@ -326,10 +354,23 @@ export function buildStadium(materials: IslandMaterials, collisions: CollisionWo
         const along = base + span * t;
         // Разные цвета по секторам: дома — терракота, гости — синий, служебные — белые.
         const sector = row === 0 ? 'empty' : i % 11 === 5 ? 'away' : 'home';
+        // Кресло смотрит на поле: спинка всегда со стороны трибуны, не поля.
         if (alongX) {
-          seatPlacements.push({ x: centerX + along, y: GROUND + height + 0.07, z: centerZ - sign * offset, rotY: 0, color: sector });
+          seatPlacements.push({
+            x: centerX + along,
+            y: GROUND + height + 0.02,
+            z: centerZ - sign * offset,
+            rotY: side === 'north' ? Math.PI : 0,
+            color: sector,
+          });
         } else {
-          seatPlacements.push({ x: centerX - sign * offset, y: GROUND + height + 0.07, z: centerZ + along, rotY: Math.PI / 2, color: sector });
+          seatPlacements.push({
+            x: centerX - sign * offset,
+            y: GROUND + height + 0.02,
+            z: centerZ + along,
+            rotY: side === 'west' ? Math.PI / 2 : -Math.PI / 2,
+            color: sector,
+          });
         }
       }
     }
@@ -351,7 +392,7 @@ export function buildStadium(materials: IslandMaterials, collisions: CollisionWo
     dummy.updateMatrix();
     seatGroups[seat.color].push(dummy.matrix.clone());
 
-    dummy.position.set(seat.x, seat.y - 0.2, seat.z);
+    dummy.position.set(seat.x, seat.y - 0.17, seat.z);
     dummy.updateMatrix();
     legMatrix.copy(dummy.matrix);
     legInstances.push(legMatrix.clone());
@@ -556,15 +597,20 @@ export function buildStadium(materials: IslandMaterials, collisions: CollisionWo
 
   // Турникеты: три прохода в проёме восточной трибуны
   const gateX = centerX + halfW;
-  /** Расстановка турникетов: три прохода, между тумбами 1,14 м — герой (Ø0,68) проходит. */
-  const TURNSTILE_DZ = [-2.1, 0, 2.1] as const;
-  const POST_OFFSET = 0.78;
-  for (const dz of TURNSTILE_DZ) {
+  /** Турникеты: три прохода. Между тумбами 1,14 м — герой (Ø0,68) проходит,
+   *  всё остальное в проёме зашито металлом: мимо турникетов не пройти. */
+  const TURNSTILE_DZ = [-2.6, 0, 2.6] as const;
+  const POST_OFFSET = 0.95;
+  const POST = 0.42;
+  /** Тумбы с номером турникета: проход между тумбами одной пары зашивать нельзя. */
+  const posts: Array<{ z: number; turnstile: number }> = [];
+  TURNSTILE_DZ.forEach((dz, turnstile) => {
     const z = centerZ + dz;
     for (const side of [-1, 1] as const) {
+      posts.push({ z: z + side * POST_OFFSET, turnstile });
       box(
         materials.metal,
-        [0.42, 1.05 + SINK, 0.42],
+        [POST, 1.05 + SINK, POST],
         [gateX, GROUND - SINK + (1.05 + SINK) / 2, z + side * POST_OFFSET],
       );
     }
@@ -580,7 +626,37 @@ export function buildStadium(materials: IslandMaterials, collisions: CollisionWo
       );
     }
     box(materials.metal, [0.1, 1.0, 0.1], [gateX, GROUND + 1.0, z]);
+  });
+
+  // Зашивка между тумбами СОСЕДНИХ турникетов и по краям проёма:
+  // проход внутри пары тумб остаётся открытым — это и есть турникет.
+  const seams: Array<[number, number]> = [];
+  const sorted = [...posts].sort((a, b) => a.z - b.z);
+  for (let i = 0; i < sorted.length - 1; i += 1) {
+    if (sorted[i].turnstile === sorted[i + 1].turnstile) continue;
+    const a = sorted[i].z + POST / 2;
+    const b = sorted[i + 1].z - POST / 2;
+    if (b - a > 0.02) seams.push([a, b]);
   }
+  // Края: от внешней тумбы до торца стены
+  seams.push([sorted[sorted.length - 1].z + POST / 2, centerZ + GATE_WIDTH / 2]);
+  seams.push([centerZ - GATE_WIDTH / 2, sorted[0].z - POST / 2]);
+  for (const [a, b] of seams) {
+    const width = b - a;
+    if (width <= 0.01) continue;
+    box(
+      materials.metal,
+      [0.3, 0.95 + SINK, width],
+      [gateX, GROUND - SINK + (0.95 + SINK) / 2, (a + b) / 2],
+    );
+    collisions.addBox(gateX - 0.15, gateX + 0.15, a, b, GROUND + 1.0);
+  }
+
+  // Навес над турникетами: вход читается как вход, а не как дыра в стене
+  box(materials.metal, [0.22, 1.9 + SINK, 0.22], [gateX + 1.9, GROUND - SINK + (1.9 + SINK) / 2, centerZ - GATE_WIDTH / 2 + 0.3]);
+  box(materials.metal, [0.22, 1.9 + SINK, 0.22], [gateX + 1.9, GROUND - SINK + (1.9 + SINK) / 2, centerZ + GATE_WIDTH / 2 - 0.3]);
+  box(materials.trim, [2.6, 0.14, GATE_WIDTH - 0.2], [gateX + 0.9, GROUND + 3.3, centerZ]);
+  box(materials.trim, [2.7, 0.1, GATE_WIDTH - 0.1], [gateX + 0.95, GROUND + 3.42, centerZ]);
 
   // ——— подъездная аллея: улица заканчивается у ворот стадиона ———
   const driveX = STADIUM.driveX;
@@ -689,11 +765,12 @@ export function buildStadium(materials: IslandMaterials, collisions: CollisionWo
       minX: centerX - halfW - 1,
       maxX: plazaMaxX + 1,
       minZ: centerZ - halfD - 1,
-      maxZ: plazaMaxZ + 1,
+      maxZ: centerZ + halfD + 1,
     },
     clearings: [
-      // чаша вместе с площадью
-      { minX: centerX - halfW - 1, maxX: plazaMaxX + 1, minZ: centerZ - halfD - 1, maxZ: plazaMaxZ + 1 },
+      // чаша вместе с площадью: южная граница — стена чаши, а не площадь.
+      // Раньше здесь стоял plazaMaxZ, и трава сеялась по южной трибуне и краю поля.
+      { minX: centerX - halfW - 1, maxX: plazaMaxX + 1, minZ: centerZ - halfD - 1, maxZ: centerZ + halfD + 1 },
       // аллея от улицы к площади
       { minX: driveX - driveHalf - 0.4, maxX: driveX + driveHalf + 0.4, minZ: driveEnd, maxZ: driveStart },
       // рукав, которым улица заканчивается у аллеи

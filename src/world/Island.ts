@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ISLAND, PLOT, TERRACE, VILLA } from '../core/Config';
+import { COURT, ISLAND, PLOT, STADIUM, TERRACE, TOWN, VILLA } from '../core/Config';
 import type { LoadedAssets } from '../core/Assets';
 import { createIslandMaterials, type IslandMaterials } from './island/IslandTextures';
 import { buildGround } from './island/Ground';
@@ -145,6 +145,25 @@ export class Island {
 
     // Все объекты стоят на земле — проверяем, что ничего не парит над плато
     this.group.updateMatrixWorld(true);
+  }
+
+  /** Где сейчас герой — нужно репликам (задача 17), чтобы «краска сохнет»
+   *  не звучала на стадионе, а «вот она, арена» — у виллы. */
+  placeAt(x: number, z: number): 'villa' | 'court' | 'stadium' | 'street' {
+    const bowl = this.stadium.footprint;
+    const onDrive =
+      Math.abs(x - STADIUM.driveX) < STADIUM.driveWidth / 2 + 1 &&
+      z > STADIUM.centerZ + STADIUM.depth / 2 &&
+      z < TOWN.streetZ + 3;
+    if ((x > bowl.minX && x < bowl.maxX && z > bowl.minZ && z < bowl.maxZ) || onDrive) return 'stadium';
+    if (x > PLOT.fenceMinX && x < PLOT.fenceMaxX && z > PLOT.fenceMinZ && z < PLOT.fenceMaxZ) return 'villa';
+    if (
+      Math.abs(x - COURT.centerX) < COURT.length / 2 + 3 &&
+      Math.abs(z - COURT.centerZ) < COURT.width / 2 + 3
+    ) {
+      return 'court';
+    }
+    return 'street';
   }
 
   /** Анимация: ветер в листьях пальм, кустах и траве. */

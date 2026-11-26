@@ -1,29 +1,32 @@
 {
-  "$comment": "Реплики героя (задача 9, GOAL §7). Триггеры — только события шины. priority: 10 idle … 70 победа. cooldown — секунды до повтора. file — путь внутри src/assets/voice; если файла нет, игра показывает субтитры (обязательный фолбэк).",
+  "$comment": "Реплики героя (задача 9, GOAL §7; переработаны в задаче 17). Триггеры — только события шины. priority: 10 idle … 70 победа. cooldown — секунды до повтора. place — где реплика уместна: any / villa / court / stadium; в другом месте она не звучит (это и убирает «краска сохнет» на стадионе). file — путь внутри src/assets/voice; если файла нет, игра показывает субтитры (обязательный фолбэк).",
   "lines": [
     {
       "id": "start_mission1",
-      "text": "Так, дом почти готов. Осталась эта стена.",
+      "text": "Так. Дом почти готов — осталась эта стена.",
       "trigger": "quest:started:mission_01",
       "priority": 50,
       "cooldown": 600,
-      "file": "voice/start_mission1.mp3"
+      "file": "voice/start_mission1.mp3",
+      "place": "villa"
     },
     {
       "id": "take_roller",
-      "text": "Валик в руках. Держится удобно.",
+      "text": "Валик в руках. Лёгкий, слушается.",
       "trigger": "item:pickup:roller",
       "priority": 30,
       "cooldown": 20,
-      "file": "voice/take_roller.mp3"
+      "file": "voice/take_roller.mp3",
+      "place": "villa"
     },
     {
       "id": "take_paint",
-      "text": "Краска есть. Теперь полоса за полосой, не спеша.",
+      "text": "Краска есть. Значит, полоса за полосой.",
       "trigger": "item:pickup:paint",
       "priority": 30,
       "cooldown": 20,
-      "file": "voice/take_paint.mp3"
+      "file": "voice/take_paint.mp3",
+      "place": "villa"
     },
     {
       "id": "paint_start",
@@ -31,23 +34,26 @@
       "trigger": "paint:started",
       "priority": 40,
       "cooldown": 30,
-      "file": "voice/paint_start.mp3"
+      "file": "voice/paint_start.mp3",
+      "place": "villa"
     },
     {
       "id": "paint_dry",
-      "text": "Валик подсох. Надо макнуть.",
+      "text": "Валик подсох. Макнуть бы.",
       "trigger": "paint:dry",
       "priority": 35,
       "cooldown": 25,
-      "file": "voice/paint_dry.mp3"
+      "file": "voice/paint_dry.mp3",
+      "place": "villa"
     },
     {
       "id": "paint_half",
-      "text": "Половина готова. Идёт ровно.",
+      "text": "Половина стены. Идёт ровно.",
       "trigger": "paint:progress:half",
       "priority": 40,
       "cooldown": 600,
-      "file": "voice/paint_half.mp3"
+      "file": "voice/paint_half.mp3",
+      "place": "villa"
     },
     {
       "id": "wall_done",
@@ -55,15 +61,17 @@
       "trigger": "paint:completed",
       "priority": 50,
       "cooldown": 600,
-      "file": "voice/wall_done.mp3"
+      "file": "voice/wall_done.mp3",
+      "place": "villa"
     },
     {
       "id": "to_court",
-      "text": "Пора во двор. Там кольцо, а у меня руки чешутся.",
+      "text": "Теперь во двор: там кольцо, а у меня руки чешутся.",
       "trigger": "quest:started:mission_02",
       "priority": 50,
       "cooldown": 600,
-      "file": "voice/to_court.mp3"
+      "file": "voice/to_court.mp3",
+      "place": "any"
     },
     {
       "id": "take_ball",
@@ -71,7 +79,8 @@
       "trigger": "item:pickup:ball",
       "priority": 30,
       "cooldown": 20,
-      "file": "voice/take_ball.mp3"
+      "file": "voice/take_ball.mp3",
+      "place": "any"
     },
     {
       "id": "throw",
@@ -79,7 +88,8 @@
       "trigger": "ball:throw",
       "priority": 25,
       "cooldown": 18,
-      "file": "voice/throw.mp3"
+      "file": "voice/throw.mp3",
+      "place": "any"
     },
     {
       "id": "goal",
@@ -87,15 +97,17 @@
       "trigger": "ball:scored",
       "priority": 60,
       "cooldown": 6,
-      "file": "voice/goal.mp3"
+      "file": "voice/goal.mp3",
+      "place": "any"
     },
     {
       "id": "miss",
-      "text": "Мимо. Ничего, ещё раз.",
+      "text": "Мимо. Ещё раз.",
       "trigger": "ball:missed",
       "priority": 45,
       "cooldown": 8,
-      "file": "voice/miss.mp3"
+      "file": "voice/miss.mp3",
+      "place": "any"
     },
     {
       "id": "goal_second",
@@ -103,7 +115,8 @@
       "trigger": "ball:scored:final",
       "priority": 65,
       "cooldown": 600,
-      "file": "voice/goal_second.mp3"
+      "file": "voice/goal_second.mp3",
+      "place": "any"
     },
     {
       "id": "win",
@@ -111,39 +124,98 @@
       "trigger": "quest:completed:mission_02",
       "priority": 70,
       "cooldown": 600,
-      "file": "voice/win.mp3"
+      "file": "voice/win.mp3",
+      "place": "any"
     },
     {
-      "id": "idle_1",
-      "text": "Хороший день. Море тихое.",
+      "id": "idle_stand_1",
+      "text": "Хороший день. Ветер с моря.",
       "trigger": "idle",
       "priority": 10,
       "cooldown": 45,
-      "file": "voice/idle_1.mp3"
+      "file": "",
+      "place": "any"
     },
     {
-      "id": "idle_2",
-      "text": "Дом почти готов. Осталось мелочи.",
+      "id": "idle_stand_2",
+      "text": "Стою, дышу. Спешить некуда.",
       "trigger": "idle",
       "priority": 10,
       "cooldown": 45,
-      "file": "voice/idle_2.mp3"
+      "file": "",
+      "place": "any"
     },
     {
-      "id": "idle_3",
-      "text": "Солнце жарит — краска сохнет быстро.",
+      "id": "idle_stand_3",
+      "text": "Тишина. Даже чайки примолкли.",
       "trigger": "idle",
       "priority": 10,
       "cooldown": 45,
-      "file": "voice/idle_3.mp3"
+      "file": "",
+      "place": "any"
     },
     {
-      "id": "idle_4",
-      "text": "Сетка на кольце ещё белая. Красиво.",
-      "trigger": "idle",
-      "priority": 10,
-      "cooldown": 45,
-      "file": "voice/idle_4.mp3"
+      "id": "football_goal_1",
+      "text": "Гол! Прямо в сетку.",
+      "trigger": "football:goal",
+      "priority": 60,
+      "cooldown": 8,
+      "file": "",
+      "place": "stadium"
+    },
+    {
+      "id": "football_goal_2",
+      "text": "Есть! Видел, как легло?",
+      "trigger": "football:goal",
+      "priority": 60,
+      "cooldown": 8,
+      "file": "",
+      "place": "stadium"
+    },
+    {
+      "id": "football_goal_3",
+      "text": "Вот это удар — вратарь бы не достал.",
+      "trigger": "football:goal",
+      "priority": 60,
+      "cooldown": 8,
+      "file": "",
+      "place": "stadium"
+    },
+    {
+      "id": "stadium_enter",
+      "text": "Вот она, арена. Поле ровное, как стол.",
+      "trigger": "stadium:entered",
+      "priority": 45,
+      "cooldown": 600,
+      "file": "",
+      "place": "stadium"
+    },
+    {
+      "id": "stadium_ticket",
+      "text": "Билет в кармане. Проходим.",
+      "trigger": "stadium:ticket",
+      "priority": 40,
+      "cooldown": 600,
+      "file": "",
+      "place": "stadium"
+    },
+    {
+      "id": "football_charge",
+      "text": "Держу. Сейчас врежу.",
+      "trigger": "football:charge",
+      "priority": 20,
+      "cooldown": 25,
+      "file": "",
+      "place": "stadium"
+    },
+    {
+      "id": "football_kick",
+      "text": "Пошла!",
+      "trigger": "football:kick",
+      "priority": 25,
+      "cooldown": 20,
+      "file": "",
+      "place": "stadium"
     }
   ]
 }

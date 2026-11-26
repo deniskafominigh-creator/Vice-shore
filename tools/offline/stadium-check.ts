@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { COURT, ISLAND, PLOT, STADIUM, TOWN, layoutHouses } from '../../src/core/Config';
 import { buildStadium } from '../../src/world/island/Stadium';
+import { buildGrass } from '../../src/world/island/GrassField';
 import type { IslandMaterials } from '../../src/world/island/IslandTextures';
 import { CollisionWorld } from '../../src/world/Colliders';
 
@@ -175,6 +176,26 @@ for (let i = 0; i < corridor.length - 1 && !blockedAt; i += 1) {
 }
 if (blockedAt) fail(`проход к полю перекрыт в ${blockedAt}`);
 else console.log('проход улица → аллея → площадь → турникеты → поле свободен');
+
+// ——— 7. травы на стадионе нет ———
+const stadium = buildStadium(materials, new CollisionWorld());
+const grass = buildGrass(stadium.clearings, 9000);
+const tufts = grass.group.children[0] as THREE.InstancedMesh;
+const matrix = new THREE.Matrix4();
+const point = new THREE.Vector3();
+let onGrounds = 0;
+const footprint = stadium.footprint;
+for (let i = 0; i < tufts.count; i += 1) {
+  tufts.getMatrixAt(i, matrix);
+  point.setFromMatrixPosition(matrix);
+  const inBowl = point.x > footprint.minX && point.x < footprint.maxX && point.z > footprint.minZ && point.z < footprint.maxZ;
+  if (inBowl) {
+    onGrounds += 1;
+    if (onGrounds < 4) console.log(`   трава на чаше: ${point.x.toFixed(1)}, ${point.z.toFixed(1)}`);
+  }
+}
+if (onGrounds > 0) fail(`трава сеется на стадионе: ${onGrounds} пучков`);
+else console.log(`травы на чаше и площади: 0 из ${grass.instances} пучков`);
 
 console.log(problems === 0 ? 'Стадион: всё на месте' : `Стадион: проблем ${problems}`);
 export const failed = problems > 0;
