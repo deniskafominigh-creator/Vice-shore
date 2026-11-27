@@ -4,88 +4,179 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0b1a24" />
-    <title>VICE SHORE · установка</title>
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="VICE SHORE — 3D-игра от третьего лица: вилла у моря, остров, футбол. Играть онлайн или скачать одним файлом." />
+    <title>VICE SHORE · играть онлайн или скачать</title>
     <style>
       :root {
         color-scheme: dark;
-        --sea: #0b1a24;
+        --sea: #081620;
         --deep: #0f2634;
         --coral: #ffb8a1;
         --mint: #7fe3d8;
+        --sun: #ffd479;
         --text: #eaf4f6;
+        --muted: rgba(234, 244, 246, 0.68);
+        --card: rgba(255, 255, 255, 0.07);
+        --edge: rgba(255, 255, 255, 0.14);
       }
-      * { box-sizing: border-box; }
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
       body {
         margin: 0;
         min-height: 100dvh;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: 18px;
-        padding: 26px 20px calc(26px + env(safe-area-inset-bottom));
+        padding: 26px 18px calc(30px + env(safe-area-inset-bottom));
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: var(--text);
-        background: radial-gradient(120% 90% at 50% 0%, #1b4152 0%, var(--deep) 45%, var(--sea) 100%);
+        background:
+          radial-gradient(120% 80% at 50% -10%, #1d4a5c 0%, transparent 60%),
+          linear-gradient(180deg, var(--deep) 0%, var(--sea) 100%);
+        -webkit-font-smoothing: antialiased;
       }
+      main { width: 100%; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+      header { display: flex; flex-direction: column; gap: 8px; }
       h1 {
         margin: 0;
-        font-size: clamp(30px, 9vw, 46px);
-        letter-spacing: 0.06em;
-        line-height: 1;
+        font-size: clamp(32px, 10vw, 52px);
+        line-height: 0.98;
+        letter-spacing: 0.045em;
+        font-weight: 800;
       }
       h1 span { color: var(--mint); }
-      .sub { margin: 0; opacity: 0.75; font-size: 15px; line-height: 1.45; }
-      .buttons { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+      .tagline { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; }
+      .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+      .chip {
+        padding: 5px 11px;
+        border-radius: 999px;
+        background: var(--card);
+        border: 1px solid var(--edge);
+        font-size: 12.5px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .chip b { color: var(--text); font-weight: 700; }
+
+      .cta { display: flex; flex-direction: column; gap: 10px; margin-top: 2px; }
       a.button {
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 10px;
-        min-height: 62px;
-        padding: 0 22px;
+        min-height: 64px;
+        padding: 0 20px;
         border-radius: 18px;
         font-size: 19px;
-        font-weight: 700;
+        font-weight: 800;
+        letter-spacing: 0.01em;
         text-decoration: none;
-        -webkit-tap-highlight-color: transparent;
+        transition: transform 0.08s ease;
       }
-      a.play { background: linear-gradient(180deg, #8ff0e4, #46c3b4); color: #06232a; box-shadow: 0 10px 24px rgba(70, 195, 180, 0.32); }
-      a.download { background: rgba(255, 255, 255, 0.09); color: var(--text); border: 1px solid rgba(255, 255, 255, 0.16); }
-      a.button:active { transform: translateY(1px) scale(0.99); }
-      .note {
-        margin: 0;
+      a.button:active { transform: scale(0.985); }
+      a.play {
+        color: #05262b;
+        background: linear-gradient(180deg, #96f2e6 0%, #43c3b3 100%);
+        box-shadow: 0 12px 28px rgba(67, 195, 179, 0.3);
+      }
+      a.download {
+        color: var(--text);
+        background: var(--card);
+        border: 1px solid var(--edge);
+      }
+      .under { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; text-align: center; }
+
+      section {
+        background: var(--card);
+        border: 1px solid var(--edge);
+        border-radius: 16px;
         padding: 14px 16px;
-        border-radius: 14px;
-        background: rgba(255, 255, 255, 0.06);
-        font-size: 14px;
-        line-height: 1.5;
-        opacity: 0.85;
       }
-      .note b { color: var(--coral); font-weight: 700; }
-      ol { margin: 8px 0 0; padding-left: 20px; }
-      li { margin-bottom: 4px; }
-      footer { opacity: 0.5; font-size: 12px; text-align: center; }
+      h2 { margin: 0 0 10px; font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mint); }
+      ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14.5px; line-height: 1.45; }
+      li::marker { color: var(--coral); }
+      .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 14px; align-items: baseline; }
+      .keys kbd {
+        justify-self: start;
+        padding: 3px 8px;
+        border-radius: 7px;
+        border: 1px solid var(--edge);
+        background: rgba(0, 0, 0, 0.28);
+        font: inherit;
+        font-size: 12.5px;
+        white-space: nowrap;
+      }
+      .keys span { color: var(--muted); }
+      ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14.5px; line-height: 1.45; }
+      code { font-size: 13px; padding: 1px 5px; border-radius: 5px; background: rgba(0, 0, 0, 0.3); }
+      b { color: var(--sun); font-weight: 700; }
+      footer { text-align: center; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+      footer a { color: var(--mint); text-decoration: none; }
     </style>
   </head>
   <body>
-    <h1>VICE <span>SHORE</span></h1>
-    <p class="sub">Версия 0.15.0 · сборка v15 · один файл 12,2 МиБ, интернет не нужен.</p>
+    <main>
+      <header>
+        <h1>VICE <span>SHORE</span></h1>
+        <p class="tagline">
+          3D-игра от третьего лица: вилла у моря, посёлок, стадион и футбол 4×4.
+          Один файл — модель, озвучка и стили внутри.
+        </p>
+        <div class="meta">
+          <span class="chip">версия <b>0.16.0</b></span>
+          <span class="chip">сборка <b>v16</b></span>
+          <span class="chip">файл <b>12,2 МиБ</b></span>
+          <span class="chip"><b>5</b> видов растений</span>
+        </div>
+      </header>
 
-    <div class="buttons">
-      <a class="button play" href="game.html">▶ Играть в браузере</a>
-      <a class="button download" href="game.html" download="index.html">⬇ Скачать файлом (index.html)</a>
-    </div>
+      <div class="cta">
+        <a class="button play" href="game.html" rel="noopener">▶ Играть онлайн</a>
+        <a class="button download" href="game.html" download="index.html">⬇ Скачать файлом (index.html)</a>
+      </div>
+      <p class="under">
+        Онлайн — сразу в браузере, качать не нужно. Файл — для игры без интернета:
+        открывается двойным щелчком (на телефоне — из «Файлов»).
+      </p>
 
-    <p class="note">
-      <b>Про скачивание на телефоне:</b>
-      <ol>
-        <li>Нажмите «Скачать файлом» — в загрузках появится <code>index.html</code>.</li>
-        <li>Откройте его из «Файлов»/«Загрузок» — игра запустится в браузере.</li>
-        <li>Кнопка «Поделиться» → «На экран „Домой“», чтобы запускать как приложение.</li>
-      </ol>
-      Если удобнее — просто жмите «Играть в браузере», ничего скачивать не нужно.
-    </p>
+      <section>
+        <h2>Что нового в v16</h2>
+        <ul>
+          <li>Остров зарос: <b>10 500 растений</b> — луговая трава, камыш у обрыва, ромашки, маки, лаванда.</li>
+          <li>Всё это стоит <b>5 draw calls</b>: пять текстур, по одному мешу на вид, дальность режется в шейдере.</li>
+          <li>Из предыдущей сборки: голы в матче досчитываются, мяч тормозит о газон, соперник прессингует вдвоём, герой не просыпается «лёжа» после катсцены.</li>
+        </ul>
+      </section>
 
-    <footer>VICE SHORE · задача 22 · футбол 4×4, живые улицы, катсцена конца дня</footer>
+      <section>
+        <h2>Управление</h2>
+        <div class="keys">
+          <kbd>W A S D</kbd><span>идти · <kbd>Shift</kbd> — бежать</span>
+          <kbd>мышь</kbd><span>обзор, клик — захват мыши</span>
+          <kbd>Space</kbd><span>прыжок · рядом с мячом — удар с зарядкой</span>
+          <kbd>E</kbd><span>взять валик, краску или мяч</span>
+          <kbd>ЛКМ</kbd><span>замах и бросок мяча</span>
+          <kbd>Esc</kbd><span>пауза и настройки (часы, стиль, качество)</span>
+        </div>
+        <p class="under" style="text-align: left; margin-top: 10px">
+          На телефоне включается сенсор: стик слева — идти (до упора — бег), свайп — обзор,
+          щипок — приближение, кнопки <b>ПРЫЖОК</b>, <b>Ⓔ</b> и <b>II</b>.
+        </p>
+      </section>
+
+      <section>
+        <h2>Поставить на телефон</h2>
+        <ol>
+          <li>Открой «Играть онлайн» в Safari или Chrome.</li>
+          <li>Нажми «Поделиться» → «На экран „Домой“» — появится иконка, как у приложения.</li>
+          <li>Хочешь файл для игры без интернета — жми «Скачать файлом»: придёт <code>index.html</code>.</li>
+        </ol>
+      </section>
+
+      <footer>
+        VICE SHORE · задача 22 · футбол 4×4, живые улицы, катсцена конца дня<br />
+        Исходники и документы: <a href="https://github.com/deniskafominigh-creator/Vice-shore" rel="noopener">github.com/deniskafominigh-creator/Vice-shore</a>
+      </footer>
+    </main>
   </body>
 </html>
