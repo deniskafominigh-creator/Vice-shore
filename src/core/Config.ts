@@ -33,6 +33,8 @@ export interface QualityPreset {
   readonly bokeh: boolean;
   /** Плёночный эффект (FilmPass): зерно и виньетка кадра. */
   readonly film: boolean;
+  /** Мягкие тени (PCFSoft, 9 выборок на фрагмент) или обычные (PCF, 4). */
+  readonly softShadows: boolean;
 }
 
 /** Порог «дорого/дёшево» подобран так, чтобы даже слабая видеокарта держала 60 FPS:
@@ -51,6 +53,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
     bloomStrength: 0,
     bokeh: false,
     film: false,
+    softShadows: false,
   },
   medium: {
     label: 'Среднее',
@@ -64,6 +67,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
     bloomStrength: 0.26,
     bokeh: true,
     film: true,
+    softShadows: true,
   },
   high: {
     label: 'Высокое',
@@ -77,6 +81,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
     bloomStrength: 0.34,
     bokeh: true,
     film: true,
+    softShadows: true,
   },
 };
 

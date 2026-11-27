@@ -172,14 +172,19 @@ export class Game {
     const preset = QUALITY_PRESETS[this.settings.get('quality')];
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: true,
+      // Сборка v20: на среднем и высоком качестве кадр идёт через композер, и его
+      // сглаживает SMAA. MSAA самого рендерера в этом случае не работает (рисуем
+      // в render target), но буфер под него всё равно выделяется — выключаем.
+      antialias: !preset.smaa,
       powerPreference: 'high-performance',
       stencil: false,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.pixelRatio));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Мягкие тени — 9 выборок карты на фрагмент, обычные — 4. На низком качестве
+    // кадр и так борется за каждый пиксель, а разница при тенях 2048 на 92 м мала.
+    this.renderer.shadowMap.type = preset.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = FOG.exposure;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1257,6 +1262,9 @@ export class Game {
 
   private applyQuality(quality: QualityLevel): void {
     const preset = QUALITY_PRESETS[quality];
+    // Смена качества на ходу переключает и тип теней: мягкие дороже в 2,25 раза
+    this.renderer.shadowMap.type = preset.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    this.renderer.shadowMap.needsUpdate = true;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.pixelRatio));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.pipeline.setQuality(quality);

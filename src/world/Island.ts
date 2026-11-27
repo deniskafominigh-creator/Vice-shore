@@ -17,6 +17,7 @@ import { buildGrass, type GrassResult } from './island/GrassField';
 import { buildWildFlora, type FloraResult } from './island/WildFlora';
 import { buildGrove, type GroveResult } from './island/Grove';
 import { buildRoadside, type RoadsideResult } from './island/Roadside';
+import { applyShadowBudget } from './island/shadowBudget';
 import { mergeStaticMeshes } from './island/mergeStatic';
 import type { AuditNode } from './SceneAudit';
 import { CollisionWorld } from './Colliders';
@@ -78,6 +79,8 @@ export class Island {
   /** Интерьер: телевизору нужен его экран (сборка v18). */
   readonly interior: InteriorResult;
   private readonly geometries: THREE.BufferGeometry[] = [];
+  /** Что снято с теневого прохода (сборка v20) — для отчёта о бюджете кадра. */
+  shadowBudget: { disabled: number; triangles: number } = { disabled: 0, triangles: 0 };
   /** Сколько мешей было и стало после склейки статики (для отчёта о бюджете). */
   mergeStats: { before: number; after: number } = { before: 0, after: 0 };
   /** Предметы до склейки статики — вход для аудита сцены (задача 10). */
@@ -140,6 +143,11 @@ export class Island {
       this.details.group,
       distantShore,
     );
+
+    // ——— бюджет теней (сборка v20) ———
+    // Снимаем тень с того, чего в тени не видно: сиденья трибун, интерьер, ремонт,
+    // земля и низкие кусты. Делается до склейки: склейка наследует флаг меша.
+    this.shadowBudget = applyShadowBudget(this.group);
 
     // ——— бюджет §4.4: статичная геометрия склеивается по материалам ———
     // Вилла, интерьер, забор и двор — сотни отдельных мешей; после склейки на каждый

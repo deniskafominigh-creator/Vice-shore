@@ -50,6 +50,9 @@ interface Disposable {
 // ————————————————————————————————————————————————————————————————
 
 const unitScale = new THREE.Vector3(1, 1, 1);
+/** Точки, с которых видно чаек и струю: считаются раз, а не каждый кадр. */
+const GULL_EYE = new THREE.Vector3(0, 14, -12);
+const FOUNTAIN_EYE = new THREE.Vector3(-62, 4, 8);
 const tempPosition = new THREE.Vector3();
 const tempQuaternion = new THREE.Quaternion();
 const tempMatrix = new THREE.Matrix4();
@@ -1033,8 +1036,8 @@ export function buildDetails(materials: IslandMaterials): DetailsResult {
       clock.uniform.value = elapsed;
       if (eye) {
         // Чайки и струи — мелочь в пару пикселей: с другого края острова не нужны
-        if (gullMesh) gullMesh.visible = eye.distanceTo(new THREE.Vector3(0, 14, -12)) < 220;
-        fountain.spray.visible = eye.distanceTo(new THREE.Vector3(-62, 4, 8)) < 90;
+        if (gullMesh) gullMesh.visible = eye.distanceTo(GULL_EYE) < 220;
+        fountain.spray.visible = eye.distanceTo(FOUNTAIN_EYE) < 90;
       }
     },
     dispose(): void {

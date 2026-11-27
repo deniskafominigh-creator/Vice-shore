@@ -185,8 +185,13 @@ function createSignTexture(text: string, background: string, ink: string): THREE
   return texture;
 }
 
-/** Кресло трибуны: подушка, наклонная спинка, две боковины. Одна геометрия на все
- *  места — дальше это InstancedMesh, поэтому детализация стоит один draw call. */
+/** Кресло трибуны: подушка и наклонная спинка. Одна геометрия на все места —
+ *  дальше это InstancedMesh, поэтому детализация стоит один draw call.
+ *
+ *  Сборка v20: кресел 934 штуки, и каждое лишнее ребро умножается на все места.
+ *  Две боковины, которые были здесь раньше, добавляли 24 треугольника на кресло
+ *  (22 400 на всю чашу), а на трибуне с 12 метров их не видно — остались подушка
+ *  и спинка: 24 треугольника вместо 60. */
 function buildSeatGeometry(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
 
@@ -198,12 +203,6 @@ function buildSeatGeometry(): THREE.BufferGeometry {
   back.rotateX(-0.13);
   back.translate(0, 0.29, -0.19);
   parts.push(back);
-
-  for (const sx of [-1, 1] as const) {
-    const cheek = new THREE.BoxGeometry(0.05, 0.1, 0.36);
-    cheek.translate(sx * 0.215, 0.035, 0.02);
-    parts.push(cheek);
-  }
 
   const merged = mergeGeometries(parts, false);
   for (const part of parts) part.dispose();

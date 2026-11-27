@@ -217,7 +217,10 @@ export function buildVegetation(materials: IslandMaterials, collisions: Collisio
   const shrubMaterial = materials.foliage.clone();
   withWind(shrubMaterial, uniforms, 0.05, false);
   const shrubPoints = shrubPositions(46);
-  const shrubGeometry = blobGeometry(13, 2);
+  // Сборка v20: было detail 2 (320 треугольников на куст, 24 800 на все кусты).
+  // Куст — это шар 1,2 м в поперечнике, который видно с 10 метров: detail 1
+  // (80 треугольников) читается так же, а шум по вершинам остаётся.
+  const shrubGeometry = blobGeometry(13, 1);
   const shrubs = new THREE.InstancedMesh(shrubGeometry, shrubMaterial, shrubPoints.length * 3);
   shrubs.castShadow = true;
   shrubs.receiveShadow = true;
