@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Задача 11: без масштабирования страницы — щипок работает как приближение камеры. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#0b1a24" />
+    <title>VICE SHORE</title>
+    <meta
+      name="description"
+      content="VICE SHORE — 3D-игра от третьего лица в стиле GTA 6: вилла у моря, ремонт и баскетбол."
+    />
+  </head>
+  <body>
+    <!-- Единственный canvas игры. Весь интерфейс — DOM-оверлей поверх него (§4.1 GOAL.md). -->
+    <canvas id="game-canvas" aria-label="Игровая сцена"></canvas>
+    <div id="ui-root"></div>
+    <noscript>
+      <div style="color: #fff; font-family: sans-serif; padding: 24px">
+        Для запуска игры нужен включённый JavaScript.
+      </div>
+    </noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

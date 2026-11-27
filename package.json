@@ -1,0 +1,49 @@
+{
+  "name": "vice-shore",
+  "private": true,
+  "version": "0.22.0",
+  "type": "module",
+  "description": "VICE SHORE — 3D-игра от третьего лица в стиле GTA 6: вилла у моря, две миссии",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "typecheck": "tsc --noEmit",
+    "audit:scene": "node tools/audit-scene.mjs",
+    "verify:touch": "node tools/verify-touch.mjs",
+    "verify:ui": "node tools/verify-ui.mjs",
+    "verify": "node tools/verify.mjs",
+    "shots:island": "node tools/shot-island13.mjs",
+    "audit:offline": "node tools/offline-run.mjs tools/offline/island-entry.ts",
+    "audit:layout": "node tools/offline-run.mjs tools/offline/layout-check.ts",
+    "check:jump": "node tools/offline-run.mjs tools/offline/jump-check.ts",
+    "check:stadium": "node tools/offline-run.mjs tools/offline/stadium-check.ts",
+    "check:ball": "node tools/offline-run.mjs tools/offline/ball-check.ts",
+    "check:voice": "node tools/offline-run.mjs tools/offline/voice-check.ts",
+    "check:seller": "node tools/offline-run.mjs tools/offline/seller-check.ts",
+    "check:graphics": "node tools/offline-run.mjs tools/offline/graphics-check.ts",
+    "check:details": "node tools/offline-run.mjs tools/offline/details-check.ts",
+    "check:clock": "node tools/offline-run.mjs tools/offline/clock-check.ts",
+    "check:match": "node tools/offline-run.mjs tools/offline/match-check.ts",
+    "check:match:live": "node tools/offline-run.mjs tools/offline/match-live-check.ts",
+    "check:cutscene": "node tools/offline-run.mjs tools/offline/cutscene-check.ts",
+    "check:flora": "node tools/offline-run.mjs tools/offline/flora-check.ts",
+    "check:grove": "node tools/offline-run.mjs tools/offline/grove-check.ts",
+    "check:roadside": "node tools/offline-run.mjs tools/offline/roadside-check.ts",
+    "check:tv": "node tools/offline-run.mjs tools/offline/tv-check.ts",
+    "check:settings": "node tools/offline-run.mjs tools/offline/settings-fps-check.ts",
+    "check:perf": "node tools/offline-run.mjs tools/offline/perf-check.ts",
+    "check:paint": "node tools/offline-run.mjs tools/offline/paint-check.ts",
+    "check:board": "node tools/offline-run.mjs tools/offline/board-check.ts"
+  },
+  "devDependencies": {
+    "@types/three": "^0.169.0",
+    "playwright": "^1.48.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vite-plugin-singlefile": "^2.3.4"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  }
+}

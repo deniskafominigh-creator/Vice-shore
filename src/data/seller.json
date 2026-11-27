@@ -1,0 +1,59 @@
+{
+  "$comment": "Кассир стадиона (задача 18). Реплики кассира лежат отдельно от реплик героя: свой голос, свой набор, без cooldown'ов и приоритетов. file — имя mp3 в src/assets/npc; файла нет — игра показывает текст. questions — что можно спросить у кассы: id связывает кнопку с ответом в TicketOffice.",
+  "speaker": "Кассир",
+  "lines": [
+    {
+      "id": "greet",
+      "text": "Касса. Билеты, заявки, разговоры — всё у меня.",
+      "file": "seller_greet.mp3"
+    },
+    {
+      "id": "join_soon",
+      "text": "Да, уже через час начнётся. Ты принят!",
+      "file": "seller_join_soon.mp3"
+    },
+    {
+      "id": "join_tomorrow",
+      "text": "Да, завтра будет футбольная игра. Если хочешь, приходи.",
+      "file": "seller_join_tomorrow.mp3"
+    },
+    {
+      "id": "watch_today",
+      "text": "Сегодня играют «Морские волки» и «Коралловые короли». Билет — и ты на трибуне.",
+      "file": "seller_watch_today.mp3"
+    },
+    {
+      "id": "watch_tomorrow",
+      "text": "Завтра играют «Пиратская бухта» и «Чайки». Приходи, будет весело.",
+      "file": "seller_watch_tomorrow.mp3"
+    },
+    {
+      "id": "teams",
+      "text": "Команд на острове пять. Твоя — Viced Boys, пока что без игроков.",
+      "file": "seller_teams.mp3"
+    },
+    {
+      "id": "viced",
+      "text": "Viced Boys — твоя команда. Пока без игроков, но заявка уже есть.",
+      "file": "seller_viced.mp3"
+    },
+    {
+      "id": "ticket_sold",
+      "text": "Держи билет. Проходи через турникеты.",
+      "file": "seller_ticket.mp3"
+    },
+    {
+      "id": "bye",
+      "text": "Обращайся. Как появится состав — я тут.",
+      "file": "seller_bye.mp3"
+    }
+  ],
+  "questions": [
+    { "id": "join", "label": "Можно записаться на матч?" },
+    { "id": "watch", "label": "А чей матч можно посмотреть?" },
+    { "id": "teams", "label": "Что за команды играют?" },
+    { "id": "viced", "label": "Кто такие Viced Boys?" },
+    { "id": "ticket", "label": "Билет, пожалуйста" },
+    { "id": "bye", "label": "Спасибо, я пойду" }
+  ]
+}

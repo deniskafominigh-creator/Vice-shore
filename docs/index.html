@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1a24" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="VICE SHORE — 3D-игра от третьего лица: вилла у моря, остров, футбол. Играть онлайн или скачать одним файлом." />
+    <title>VICE SHORE · играть онлайн или скачать</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --sea: #081620;
+        --deep: #0f2634;
+        --coral: #ffb8a1;
+        --mint: #7fe3d8;
+        --sun: #ffd479;
+        --text: #eaf4f6;
+        --muted: rgba(234, 244, 246, 0.68);
+        --card: rgba(255, 255, 255, 0.07);
+        --edge: rgba(255, 255, 255, 0.14);
+      }
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        padding: 26px 18px calc(30px + env(safe-area-inset-bottom));
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(120% 80% at 50% -10%, #1d4a5c 0%, transparent 60%),
+          linear-gradient(180deg, var(--deep) 0%, var(--sea) 100%);
+        -webkit-font-smoothing: antialiased;
+      }
+      main { width: 100%; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+      header { display: flex; flex-direction: column; gap: 8px; }
+      h1 {
+        margin: 0;
+        font-size: clamp(32px, 10vw, 52px);
+        line-height: 0.98;
+        letter-spacing: 0.045em;
+        font-weight: 800;
+      }
+      h1 span { color: var(--mint); }
+      .tagline { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; }
+      .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+      .chip {
+        padding: 5px 11px;
+        border-radius: 999px;
+        background: var(--card);
+        border: 1px solid var(--edge);
+        font-size: 12.5px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .chip b { color: var(--text); font-weight: 700; }
+
+      .cta { display: flex; flex-direction: column; gap: 10px; margin-top: 2px; }
+      a.button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-height: 64px;
+        padding: 0 20px;
+        border-radius: 18px;
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        text-decoration: none;
+        transition: transform 0.08s ease;
+      }
+      a.button:active { transform: scale(0.985); }
+      a.play {
+        color: #05262b;
+        background: linear-gradient(180deg, #96f2e6 0%, #43c3b3 100%);
+        box-shadow: 0 12px 28px rgba(67, 195, 179, 0.3);
+      }
+      a.download {
+        color: var(--text);
+        background: var(--card);
+        border: 1px solid var(--edge);
+      }
+      .under { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; text-align: center; }
+
+      section {
+        background: var(--card);
+        border: 1px solid var(--edge);
+        border-radius: 16px;
+        padding: 14px 16px;
+      }
+      h2 { margin: 0 0 10px; font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mint); }
+      ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14.5px; line-height: 1.45; }
+      li::marker { color: var(--coral); }
+      .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 14px; align-items: baseline; }
+      .keys kbd {
+        justify-self: start;
+        padding: 3px 8px;
+        border-radius: 7px;
+        border: 1px solid var(--edge);
+        background: rgba(0, 0, 0, 0.28);
+        font: inherit;
+        font-size: 12.5px;
+        white-space: nowrap;
+      }
+      .keys span { color: var(--muted); }
+      ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14.5px; line-height: 1.45; }
+      code { font-size: 13px; padding: 1px 5px; border-radius: 5px; background: rgba(0, 0, 0, 0.3); }
+      b { color: var(--sun); font-weight: 700; }
+      footer { text-align: center; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+      footer a { color: var(--mint); text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>VICE <span>SHORE</span></h1>
+        <p class="tagline">
+          3D-игра от третьего лица: вилла у моря, посёлок, стадион и футбол 4×4.
+          Один файл — модель, озвучка и стили внутри.
+        </p>
+        <div class="meta">
+          <span class="chip">версия <b>0.22.0</b></span>
+          <span class="chip">сборка <b>v22</b></span>
+          <span class="chip">файл <b>12,3 МиБ</b></span>
+          <span class="chip"><b>3</b> канала в телевизоре</span>
+          <span class="chip">мазок валиком — <b>3,2 с</b></span>
+          <span class="chip">лонгборд — <b>27 км/ч</b></span>
+        </div>
+      </header>
+
+      <div class="cta">
+        <a class="button play" href="game.html" rel="noopener">▶ Играть онлайн</a>
+        <a class="button download" href="game.html" download="index.html">⬇ Скачать файлом (index.html)</a>
+      </div>
+      <p class="under">
+        Онлайн — сразу в браузере, качать не нужно. Файл — для игры без интернета:
+        открывается двойным щелчком (на телефоне — из «Файлов»).
+      </p>
+
+      <section>
+        <h2>Что нового в v22</h2>
+        <ul>
+          <li><b>Лонгборд у калитки виллы</b> — первое средство передвижения. Подойди и нажми <b>E</b>: герой встаёт на доску, <b>W</b> или <b>ЛКМ</b> — толчок, <b>A/D</b> — руль, <b>S</b> — тормозить ногой, <b>E</b> — сойти. До <b>27 км/ч</b>: остров наконец проезжается, а не проходится. В повороте герой наклоняется вместе с доской, под декой неон.</li>
+          <li><b>На телефоне</b> большая кнопка становится <b>«ТОЛЧОК»</b>, а Ⓔ — <b>«СОЙТИ»</b>; стик — газ и руль.</li>
+          <li><b>Меньше «каши» на экране</b>: плашки сообщений больше не висят друг на друге — одна плашка, остальные ждут в очереди; одинаковый текст не повторяется; подсказки миссий молчат, пока едешь.</li>
+          <li><b>Звук доски</b>: шорох колёс по асфальту (тон и громкость по скорости), глуше по траве, шаркающий удар на толчок.</li>
+          <li>Из v21: <b>покраска валиком как в жизни</b> — мазок в одну сторону, слой за проход, звук ворса.</li>
+        </ul>
+        <h2>Что нового в v21</h2>
+        <ul>
+          <li><b>Покраска валиком — как в жизни</b>: один мазок — один проход <b>снизу вверх</b>, валик больше не трёт одно место туда-сюда. Слой ложится за <b>один</b> проход: на всю стену 10 мазков по 3,2 с и 2–3 макания, а не сто натираний.</li>
+          <li><b>Темп задаёт мастер</b>: 0,95 м/с — разогнать покраску частыми нажатиями нельзя.</li>
+          <li><b>Звук мазка</b>: мокрый чавк в начале, липкое шуршание ворса, отрыв рукава в конце; с полупустого валика звук суше, полоса ложится пятнами и докрашивается <b>вторым</b> проходом после макания.</li>
+          <li><b>Рукав крутится</b> от пройденного пути (на ворсе виден шов), а краска ложится полосой с живым краем, а не ровной заливкой.</li>
+          <li>Из v20: <b>игра легче на телефоне</b> — теневой проход урезан на 37 %, цветной на 11 %; счётчик FPS в «Настройках → Интерфейс».</li>
+        </ul>
+        <h2>Что нового в v19</h2>
+        <ul>
+          <li><b>Счётчик FPS в настройках</b>: «Настройки → Интерфейс → Показывать FPS» — компактная цифра в левом верхнем углу, зелёная при 55+, жёлтая при 40–54, красная ниже. Выключен по умолчанию.</li>
+          <li>Из v18: <b>телевизор в гостиной</b> — подойди и нажми <b>E</b>, три канала (футбол, новости, погода), переключение <b>Q</b>, живая картинка со счётом и бегущей строкой, дикторская озвучка и звук, слышный у дивана.</li>
+        </ul>
+        <h2>Что нового в v18</h2>
+        <ul>
+          <li><b>Телевизор в гостиной</b>: подойди и нажми <b>E</b> — три канала (футбол, новости, погода), переключение <b>Q</b>, живая картинка со счётом и бегущей строкой, дикторская озвучка и звук, слышный у дивана.</li>
+          <li>Из v17: <b>69 деревьев пяти пород</b> — пинии, кипарисы, баньяны с воздушными корнями, жакаранды и оливы. Всё это стоит <b>5 draw calls</b>.</li>
+          <li><b>Фирменный забор посёлка</b>: белый штакетник в два роста на каменном цоколе, терракотовые шапки столбов, латунные номера участков, бугенвиллия.</li>
+          <li>Пешеходный переход, указатель «Стадион», автобусная остановка с расписанием, почтовые ящики и кашпо у каждой калитки.</li>
+          <li>Дома больше не близнецы: три силуэта кровли (плоская, двускатная с трубой, односкатная с садом на крыше), пять оттенков стен, цветные ставни, тенты над входом.</li>
+          <li>Из v16: 10 500 растений флоры — луговая трава, камыш, ромашки, маки, лаванда.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Управление</h2>
+        <div class="keys">
+          <kbd>W A S D</kbd><span>идти · <kbd>Shift</kbd> — бежать</span>
+          <kbd>мышь</kbd><span>обзор, клик — захват мыши</span>
+          <kbd>Space</kbd><span>прыжок · рядом с мячом — удар с зарядкой · у стены — мазок валиком</span>
+          <kbd>E</kbd><span>взять валик, краску или мяч · у доски — встать и сойти</span>
+          <kbd>ЛКМ</kbd><span>замах и бросок мяча · у стены — мазок валиком</span>
+          <kbd>E</kbd><span>у телевизора — включить и выключить, <kbd>Q</kbd> — сменить канал</span>
+          <kbd>Esc</kbd><span>пауза и настройки (часы, стиль, качество)</span>
+        </div>
+        <p class="under" style="text-align: left; margin-top: 10px">
+          На телефоне включается сенсор: стик слева — идти (до упора — бег), свайп — обзор,
+          щипок — приближение, кнопки <b>ПРЫЖОК</b>, <b>Ⓔ</b> и <b>II</b>.
+          У стены большая кнопка называется <b>КРАСИТЬ</b>: одно нажатие — один мазок.
+          На лонгборде она становится <b>ТОЛЧОК</b>, а Ⓔ — <b>СОЙТИ</b>.
+        </p>
+      </section>
+
+      <section>
+        <h2>Поставить на телефон</h2>
+        <ol>
+          <li>Открой «Играть онлайн» в Safari или Chrome.</li>
+          <li>Нажми «Поделиться» → «На экран „Домой“» — появится иконка, как у приложения.</li>
+          <li>Хочешь файл для игры без интернета — жми «Скачать файлом»: придёт <code>index.html</code>.</li>
+        </ol>
+      </section>
+
+      <footer>
+        VICE SHORE · задача 22 · футбол 4×4, живые улицы, катсцена конца дня<br />
+        Исходники и документы: <a href="https://github.com/deniskafominigh-creator/Vice-shore" rel="noopener">github.com/deniskafominigh-creator/Vice-shore</a>
+      </footer>
+    </main>
+  </body>
+</html>

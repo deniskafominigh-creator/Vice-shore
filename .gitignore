@@ -1,0 +1,15 @@
+# зависимости
+node_modules/
+
+# сборка
+dist/
+
+# служебное
+.DS_Store
+*.log
+.vite/
+playwright-report/
+test-results/
+
+# готовый файл для скачивания (дубликат сборки, в git не нужен)
+download/
