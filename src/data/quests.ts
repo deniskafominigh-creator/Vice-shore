@@ -25,7 +25,7 @@ export const MISSION_01: QuestDefinition = {
   steps: [
     { id: 'take_roller', hint: 'Валик лежит на стремянке у стены — подойди и возьми (E)' },
     { id: 'take_paint', hint: 'Теперь банка краски на полу у стены' },
-    { id: 'paint_wall', hint: 'Встань к стене и крась: W/S — вести валик, A/D — соседняя полоса, R — макнуть, E — отойти' },
+    { id: 'paint_wall', hint: 'Встань к стене: ЛКМ или ПРОБЕЛ — мазок снизу вверх, A/D — соседняя полоса, R — макнуть, E — отойти' },
   ],
 };
 
@@ -53,6 +53,7 @@ export const PAINT_TEXTS = {
   stateDryTouch: 'валик сухой — нажми МАКНУТЬ',
   stateLoaded: 'краска на валике',
   stateLow: 'краски мало',
+  stateLowHint: 'Валик на исходе — полоса ляжет пятнами, потом макни (R)',
   stateDone: 'стена покрашена',
   promptRoller: 'E — взять валик',
   promptRollerTouch: 'Нажми Ⓔ — взять валик',
@@ -61,8 +62,8 @@ export const PAINT_TEXTS = {
   promptWall: 'E — красить стену',
   promptWallTouch: 'Нажми Ⓔ — красить стену',
   promptWallNoRoller: 'Нужен валик и краска',
-  painting: 'W/S — вести валик · A/D — полоса · R — макнуть · E — отойти',
-  paintingTouch: 'Стик вверх-вниз — вести валик · ‹ › — полоса · МАКНУТЬ · ОТОЙТИ',
+  painting: 'ЛКМ или ПРОБЕЛ — мазок снизу вверх · A/D — полоса · R — макнуть · E — отойти',
+  paintingTouch: 'КРАСИТЬ — мазок снизу вверх · ‹ › — полоса · МАКНУТЬ · ОТОЙТИ',
   paintStart: 'Красим стену',
   dipped: 'Валик в краске',
   noPaint: 'Краска на валике кончилась — нажми R у банки',

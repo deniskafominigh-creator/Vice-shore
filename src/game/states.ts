@@ -151,7 +151,7 @@ class PlayingState implements GameState {
 
     // Покраска стены перехватывает управление (задача 7)
     if (game.paintMission?.painting) {
-      game.paintMission.updatePainting(dt, look);
+      game.paintMission.updatePainting(dt);
       return;
     }
 

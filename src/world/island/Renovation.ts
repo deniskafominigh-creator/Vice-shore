@@ -25,6 +25,34 @@ const WALL_BASE = 0.12;
 const MASK_WIDTH = 512;
 const MASK_HEIGHT = 336;
 
+/** «Шубка» валика: вертикальные штрихи ворса. Маска умножается на них одним
+ *  `drawImage`, поэтому край слоя не выглядит ровной заливкой, а живой полосой. */
+function createNapCanvas(): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 336;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas;
+  for (let x = 0; x < canvas.width; x += 1) {
+    // Детерминированный «шум»: одна и та же колонка всегда одинаковой плотности,
+    // иначе маска мерцала бы при каждой перерисовке.
+    const hash = Math.sin(x * 12.9898) * 43758.5453;
+    const noise = hash - Math.floor(hash);
+    const alpha = 0.74 + noise * 0.26;
+    ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+    ctx.fillRect(x, 0, 1, canvas.height);
+  }
+  // Полосу ворса слегка «разбиваем» поперёк, чтобы штрихи не были бесконечными
+  for (let y = 0; y < canvas.height; y += 7) {
+    const hash = Math.sin(y * 7.233) * 1973.13;
+    const noise = hash - Math.floor(hash);
+    if (noise > 0.55) continue;
+    ctx.fillStyle = `rgba(255,255,255,${(0.5 + noise * 0.4).toFixed(3)})`;
+    ctx.fillRect(0, y, canvas.width, 2);
+  }
+  return canvas;
+}
+
 /** Текстура «сырой» стены: штукатурка с заплатками, потёками и следами валика. */
 function createRawWallTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
@@ -131,6 +159,7 @@ export class PaintWall {
   /** Покрытие по ячейкам: [полоса][ячейка], 0..1. */
   private readonly coverage: number[][];
   private readonly maskCanvas: HTMLCanvasElement;
+  private readonly napCanvas: HTMLCanvasElement;
   private readonly maskTexture: THREE.CanvasTexture;
   private readonly material: THREE.MeshStandardMaterial;
   private dirty = true;
@@ -143,6 +172,7 @@ export class PaintWall {
     this.center = new THREE.Vector3(bounds.maxX - 0.014, this.baseY + WALL_HEIGHT / 2, centerZ);
     this.coverage = Array.from({ length: PAINT.stripes }, () => new Array<number>(PAINT.cells).fill(0));
 
+    this.napCanvas = createNapCanvas();
     this.maskCanvas = document.createElement('canvas');
     this.maskCanvas.width = MASK_WIDTH;
     this.maskCanvas.height = MASK_HEIGHT;
@@ -223,6 +253,22 @@ export class PaintWall {
     return after - before;
   }
 
+  /** Слой от одного прохода валика: ставит «не меньше, чем есть».
+   *  Второй проход по тому же месту ничего не добавляет — краска не натирается.
+   *  Возвращает фактический прирост (0..1), по нему списывается краска с валика. */
+  coatCell(stripeIndex: number, cellIndex: number, amount: number): number {
+    const stripe = this.coverage[stripeIndex];
+    if (!stripe) return 0;
+    const cell = Math.max(0, Math.min(PAINT.cells - 1, cellIndex));
+    const before = stripe[cell];
+    const after = Math.min(1, Math.max(before, amount));
+    if (after <= before + 1e-9) return 0;
+    stripe[cell] = after;
+    this.dirty = true;
+    this.wetness = 1;
+    return after - before;
+  }
+
   /** Восстановление из сохранения. */
   setCoverage(values: readonly number[] | undefined): void {
     if (!values || values.length !== PAINT.stripes * PAINT.cells) return;
@@ -270,6 +316,10 @@ export class PaintWall {
         ctx.fillRect(s * stripeWidth, y, stripeWidth + 0.6, cellHeight + 0.6);
       }
     }
+    // Ворс рукава: без него слой выглядит заливкой, а не мазком
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.drawImage(this.napCanvas, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
     this.maskTexture.needsUpdate = true;
   }
 
@@ -325,8 +375,13 @@ export class HeldRoller {
   private readonly pole: THREE.Mesh;
   private readonly sleeve: THREE.Mesh;
   private readonly paintBand: THREE.Mesh;
+  private readonly seam: THREE.Mesh;
   private readonly up = new THREE.Vector3(0, 1, 0);
   private readonly direction = new THREE.Vector3();
+  private readonly axis = new THREE.Vector3(0, 1, 0);
+  private readonly baseQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+  private readonly spinQuaternion = new THREE.Quaternion();
+  private spin = 0;
 
   constructor(materials: IslandMaterials) {
     this.group.name = 'held-roller';
@@ -334,16 +389,26 @@ export class HeldRoller {
     this.pole.castShadow = true;
     this.group.add(this.pole);
 
+    // Рукав 44 см — широкий валик для больших стен: одна полоса стены (46 см)
+    // закрывается одним проходом, как и положено в жизни.
     this.sleeve = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.045, 0.045, 0.25, 14),
+      new THREE.CylinderGeometry(0.045, 0.045, 0.44, 14),
       new THREE.MeshStandardMaterial({ color: 0xf2eee4, roughness: 0.9 }),
     );
-    this.sleeve.rotation.x = Math.PI / 2;
+    this.sleeve.quaternion.copy(this.baseQuaternion);
     this.sleeve.castShadow = true;
     this.group.add(this.sleeve);
 
+    // Шов на ворсе: по нему видно, что рукав катится, а не скользит по стене
+    this.seam = new THREE.Mesh(
+      new THREE.BoxGeometry(0.006, 0.42, 0.008),
+      new THREE.MeshStandardMaterial({ color: 0xcfc7b6, roughness: 0.8 }),
+    );
+    this.seam.position.set(0.045, 0, 0);
+    this.sleeve.add(this.seam);
+
     this.paintBand = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.047, 0.047, 0.235, 14, 1, true),
+      new THREE.CylinderGeometry(0.047, 0.047, 0.425, 14, 1, true),
       new THREE.MeshStandardMaterial({ color: PAINT.color, roughness: 0.55, side: THREE.DoubleSide }),
     );
     this.paintBand.rotation.x = Math.PI / 2;
@@ -358,6 +423,13 @@ export class HeldRoller {
   /** Есть ли краска на рукаве (визуальная обратная связь). */
   setLoaded(loaded: boolean): void {
     this.paintBand.visible = loaded;
+  }
+
+  /** Рукав катится по стене: угол — пройденный путь / радиус. */
+  rollBy(distance: number): void {
+    this.spin = (this.spin + distance / 0.045) % (Math.PI * 2);
+    this.spinQuaternion.setFromAxisAngle(this.axis, this.spin);
+    this.sleeve.quaternion.copy(this.baseQuaternion).multiply(this.spinQuaternion);
   }
 
   /** Поставить ручку от кисти до точки на стене. */
@@ -375,6 +447,7 @@ export class HeldRoller {
   dispose(): void {
     this.pole.geometry.dispose();
     this.sleeve.geometry.dispose();
+    this.seam.geometry.dispose();
     this.paintBand.geometry.dispose();
   }
 }

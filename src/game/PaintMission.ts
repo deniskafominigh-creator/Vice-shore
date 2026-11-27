@@ -3,9 +3,12 @@ import { clamp, damp } from '../core/MathUtils';
 import { MISSION_01, PAINT_TEXTS } from '../data/quests';
 import { PAINT, type PaintWall, type HeldRoller } from '../world/island/Renovation';
 import type { Game } from './Game';
+import { RollerStroke, STROKE_SECONDS } from './rollerStroke';
 
 /** Механика первой миссии (задача 7): предметы, режим покраски, прогресс, звук.
- *  Правила — по `VISION.md §2`: полосы, валик вверх-вниз, запас краски, макание. */
+ *  Правила — по `VISION.md §2` и уточнению заказчика «как в реальной жизни»:
+ *  один мазок — один проход снизу вверх с темпом мастера, слой кладётся за проход,
+ *  повторно одно место не натирается, скорость не зависит от того, как часто жать. */
 
 const RULES = {
   /** С какого расстояния герой видит предмет и стену. */
@@ -13,17 +16,9 @@ const RULES = {
   wallReach: 2.4,
   /** Насколько герой отходит от стены в режиме покраски. */
   standOff: 1.02,
-  /** Валик идёт по высоте: доля высоты стены в секунду. */
-  rollerSpeed: 0.6,
-  /** Мышь (ЛКМ) ведёт валик: пиксель → доля высоты. */
-  mouseScale: 0.0032,
-  /** Прирост покрытия ячейки в секунду при полном контакте рукава. */
-  paintRate: 9,
   /** Ёмкость рукава и банки в «площадях стены». */
   rollerCapacity: 0.55,
   canCapacity: 1.15,
-  /** Полувысота контакта рукава по стене. */
-  sleeveHalf: 0.048,
   /** Не чаще, чем раз в 0,7 с, прогресс уходит в сохранение. */
   saveEvery: 0.7,
 } as const;
@@ -110,6 +105,10 @@ export class PaintMission {
 
   private stripe = 4;
   private rollerY = 0.5;
+  /** Мазок: темп, направление и слой живут в отдельном модуле (проверяется `check:paint`). */
+  private readonly stroke = new RollerStroke();
+  /** ЛКМ/ПРОБЕЛ в прошлом кадре — мазок начинается по нажатию, а не по удержанию. */
+  private holdPrevious = false;
   private walkPhase = 0;
 
   private promptText: string | null = null;
@@ -231,8 +230,8 @@ export class PaintMission {
     }
   }
 
-  /** Кадр в режиме покраски: валик, полосы, маска, звук. */
-  updatePainting(dt: number, look: { x: number; y: number }): void {
+  /** Кадр в режиме покраски: мазок, полосы, покрытие, звук. */
+  updatePainting(dt: number): void {
     const game = this.game;
     const input = game.input;
     const player = game.player;
@@ -242,6 +241,7 @@ export class PaintMission {
 
     this.wall.update(dt);
     this.droplets.update(dt);
+    this.clock += dt;
     this.dryHintCooldown = Math.max(0, this.dryHintCooldown - dt);
 
     if (input.wasPressed('KeyE')) {
@@ -250,26 +250,37 @@ export class PaintMission {
     }
     if (input.wasPressed('KeyR')) this.dipRoller();
 
-    // A/D — шаг к соседней полосе (A — к задней стене, D — к выходу)
+    // A/D — соседняя полоса. Во время мазка полосу не меняем: рука занята.
     let stripeChanged = false;
-    if (input.wasPressed('KeyA')) {
+    if (!this.stroke.active && input.wasPressed('KeyA')) {
       this.stripe = Math.max(0, this.stripe - 1);
       stripeChanged = true;
     }
-    if (input.wasPressed('KeyD')) {
+    if (!this.stroke.active && input.wasPressed('KeyD')) {
       this.stripe = Math.min(PAINT.stripes - 1, this.stripe + 1);
       stripeChanged = true;
     }
 
-    // Валик вверх-вниз: клавиши или мышь с зажатой ЛКМ
-    let delta = input.axis('KeyS', 'KeyW') * RULES.rollerSpeed * dt;
-    const mousePainting = input.isMouseDown(0);
-    if (mousePainting) delta += -look.y * RULES.mouseScale;
-    // Красит только реальное движение: упёршись в верх стены, валик не «натирает» ячейку
-    const previousY = this.rollerY;
-    this.rollerY = clamp(this.rollerY + delta, 0.015, 0.985);
-    const travel = this.rollerY - previousY;
-    const moving = Math.abs(travel) > 1e-6;
+    // Мазок: одно нажатие — один проход снизу вверх. Сколько ни держи кнопку,
+    // валик идёт с темпом мастера: разогнать покраску нельзя.
+    const holding = input.isMouseDown(0) || input.isDown('Space');
+    const pressed = holding && !this.holdPrevious;
+    this.holdPrevious = holding;
+    if (pressed) this.startStroke();
+
+    let travelled = 0;
+    let coats: readonly { cell: number; amount: number }[] = [];
+    let finished = false;
+    if (this.stroke.active) {
+      const tick = this.stroke.tick(dt);
+      travelled = tick.travelled;
+      coats = tick.coats;
+      finished = tick.finished;
+      this.rollerY = tick.y;
+    } else {
+      // Рука опускается к низу стены: следующий мазок начнётся оттуда же
+      this.rollerY = damp(this.rollerY, 0.04, 7, dt);
+    }
 
     // Герой едет к центру полосы боком
     const targetZ = this.wall.stripeCenterZ(this.stripe);
@@ -297,25 +308,20 @@ export class PaintMission {
     if (hand) {
       hand.getWorldPosition(this.handWorld);
       this.held.setPose(this.handWorld, this.tipWorld);
+      this.held.rollBy(travelled * this.wall.height);
     }
 
-    // Покраска: рукав красит ячейки, которые перекрывает
-    let painted = 0;
-    const canPaintNow = this.paintOnRoller > 0.0005;
-    if (moving && canPaintNow) {
-      painted = this.paintAtTip(dt);
-      if (painted > 0) {
-        this.droplets.spawn(this.tipWorld, 2 + Math.abs(travel) * 260);
-        this.paintOnRoller = Math.max(0, this.paintOnRoller - painted);
-        this.held.setLoaded(this.paintOnRoller > 0.01);
-        if (Math.random() < 0.09) game.audio.playSplat();
-      }
+    // Слой ложится за проход: ячейка получает краску один раз, повторно не натирается
+    // Прирост переводим в «площадь стены»: ячейка — это 1/180 стены (10 полос на 18 ячеек)
+    let gained = 0;
+    for (const coat of coats) gained += this.wall.coatCell(this.stripe, coat.cell, coat.amount);
+    gained /= PAINT.stripes * PAINT.cells;
+    if (gained > 0) {
+      this.paintOnRoller = Math.max(0, this.paintOnRoller - gained);
+      this.held.setLoaded(this.paintOnRoller > 0.01);
+      this.droplets.spawn(this.tipWorld, 1 + travelled * 520);
     }
-    if (!canPaintNow && moving && this.dryHintCooldown <= 0) {
-      this.dryHintCooldown = 4;
-      game.ui.toast(game.t(PAINT_TEXTS.noPaint, PAINT_TEXTS.noPaintTouch), 'warning');
-      game.bus.emit('paint:dry', { id: MISSION_01.id });
-    }
+    if (finished) this.finishStroke();
 
     // Половина стены: одноразовое событие для реплики (задача 9)
     const progress = this.wall.progress;
@@ -323,10 +329,6 @@ export class PaintMission {
       this.halfAnnounced = true;
       game.bus.emit('paint:progress', { id: MISSION_01.id, progress });
     }
-
-    // Звук валика: громкость по скорости движения
-    const intensity = moving && canPaintNow ? clamp(Math.abs(travel) / (RULES.rollerSpeed * dt + 1e-6), 0, 1) : 0;
-    game.audio.setRollerIntensity(intensity * 0.9);
 
     // Камера всегда за спиной и смотрит на стену
     game.thirdPersonCamera.update(dt, player.position, island.collisions);
@@ -339,6 +341,52 @@ export class PaintMission {
       this.saveTimer = 0;
       this.syncQuestProgress();
     }
+  }
+
+  /** Нажатие = мазок. Один проход кладёт слой целиком — «докрашивать» его десять раз не нужно. */
+  private startStroke(): void {
+    if (this.stroke.active) return;
+    const coat = this.stroke.begin(this.paintOnRoller);
+    if (coat <= 0) {
+      if (this.dryHintCooldown <= 0) {
+        this.dryHintCooldown = 3;
+        this.game.ui.toast(this.game.t(PAINT_TEXTS.noPaint, PAINT_TEXTS.noPaintTouch), 'warning');
+        this.game.bus.emit('paint:dry', { id: MISSION_01.id });
+      }
+      return;
+    }
+    if (coat < 0.999) this.game.ui.toast(PAINT_TEXTS.stateLowHint, 'info');
+    this.game.audio.playRollerStroke(STROKE_SECONDS, coat);
+    this.game.bus.emit('paint:stroke', { id: MISSION_01.id, coat });
+    this.hudState = '';
+  }
+
+  /** Проход дошёл до верха: рукав отрывается, выбираем, куда вести следующий. */
+  private finishStroke(): void {
+    this.game.audio.stopRollerStroke();
+    this.syncQuestProgress();
+    if (this.wall.complete) return;
+    // Сухая полоса докрашивается сразу вторым проходом (это и есть смысл макания),
+    // полностью покрытая — переходим к ближайшей, где ещё есть работа.
+    if (this.wall.stripeRemaining(this.stripe) <= 0.15) {
+      const next = this.nextStripe();
+      if (next !== -1) this.stripe = next;
+    }
+  }
+
+  /** Ближайшая полоса, где осталась работа. */
+  private nextStripe(): number {
+    let best = -1;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < PAINT.stripes; index += 1) {
+      if (this.wall.stripeRemaining(index) <= 0.02) continue;
+      const distance = Math.abs(index - this.stripe);
+      if (distance < bestDistance && distance > 0) {
+        bestDistance = distance;
+        best = index;
+      }
+    }
+    return best;
   }
 
   /** Подсветка предметов: кольцо на полу пульсирует, когда можно взять. */
@@ -363,22 +411,6 @@ export class PaintMission {
   }
 
   // ——— состояние ——————————————————————————————————————————————
-
-  private paintAtTip(dt: number): number {
-    const cellHeight = this.wall.height / PAINT.cells;
-    const lowY = this.tipWorld.y - RULES.sleeveHalf - this.wall.baseY;
-    const highY = this.tipWorld.y + RULES.sleeveHalf - this.wall.baseY;
-    const lowCell = lowY / cellHeight;
-    const highCell = highY / cellHeight;
-    let gained = 0;
-    for (let cell = Math.floor(lowCell); cell <= Math.floor(highCell); cell += 1) {
-      if (cell < 0 || cell >= PAINT.cells) continue;
-      const overlap = Math.min(highCell, cell + 1) - Math.max(lowCell, cell);
-      if (overlap <= 0.001) continue;
-      gained += this.wall.paintCell(this.stripe, cell, RULES.paintRate * overlap * dt);
-    }
-    return gained / (PAINT.stripes * PAINT.cells);
-  }
 
   private dipRoller(): void {
     if (!this.hasPaint) return;
@@ -424,8 +456,8 @@ export class PaintMission {
     game.thirdPersonCamera.snapTo(player.position, player.yaw, game.world?.island.collisions ?? null);
     game.thirdPersonCamera.zoom(-0.6);
 
-    game.audio.startRoller();
-    game.audio.setRollerIntensity(0);
+    this.stroke.cancel();
+    this.holdPrevious = false;
     game.bus.emit('paint:started', { id: MISSION_01.id });
     game.ui.setHint(null);
     game.ui.setMissionControls(game.t(PAINT_TEXTS.painting, PAINT_TEXTS.paintingTouch));
@@ -437,8 +469,8 @@ export class PaintMission {
     if (this.mode !== 'paint') return;
     const game = this.game;
     this.mode = 'walk';
-    game.audio.stopRoller();
-    game.audio.setRollerIntensity(0);
+    this.stroke.cancel();
+    game.audio.stopRollerStroke();
     game.character?.setPainting(false);
     game.character?.setLocomotion(0, 0);
     game.ui.setMissionControls(null);
@@ -601,7 +633,8 @@ export class PaintMission {
   }
 
   dispose(): void {
-    this.game.audio.stopRoller();
+    this.stroke.cancel();
+    this.game.audio.stopRollerStroke(0.05);
     this.droplets.dispose();
   }
 }

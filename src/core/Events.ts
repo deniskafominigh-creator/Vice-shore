@@ -21,6 +21,8 @@ export interface GameEventMap {
   /** Первая миссия: вошли в режим покраски, валик подсох, прогресс, стена готова. */
   'paint:started': { id: string };
   'paint:dry': { id: string };
+  /** Начался мазок: одно нажатие — один проход снизу вверх. */
+  'paint:stroke': { id: string; coat: number };
   'paint:progress': { id: string; progress: number };
   'paint:completed': { id: string };
   /** Вторая миссия: бросок, гол, промах. */

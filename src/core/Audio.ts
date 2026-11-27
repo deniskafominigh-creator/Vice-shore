@@ -23,8 +23,9 @@ export class AudioSystem {
   private voice: GainNode | null = null;
   private ambience: GainNode | null = null;
 
-  private rollerSource: AudioBufferSourceNode | null = null;
-  private rollerGain: GainNode | null = null;
+  /** Звук текущего мазка: гасим его, если мазок оборвали (пауза, выход). */
+  private strokeGain: GainNode | null = null;
+  private strokeNodes: AudioScheduledSourceNode[] = [];
 
   private ambienceStarted = false;
   private ambienceTarget = 1;
@@ -273,42 +274,95 @@ export class AudioSystem {
     this.noiseBurst(0.09, 0.05, 1400, 'bandpass');
   }
 
-  /** Петля валика по стене: включается в режиме покраски, громкость — по движению. */
-  startRoller(): void {
-    if (this.rollerSource || !this.context || !this.sfx || this.context.state !== 'running') return;
+  /** Мазок валиком — один звук на один проход снизу вверх.
+   *  В реальности это не ровный «шум», а липкий ворс: мокрый чавк в начале,
+   *  дрожащее шуршание по стене и отрыв рукава в конце. `coat` (0..1) —
+   *  сколько краски на валике: с полного звук влажнее и ярче. */
+  playRollerStroke(duration: number, coat = 1): void {
+    if (!this.context || !this.sfx || this.context.state !== 'running') return;
+    this.stopRollerStroke(0.05);
     const ctx = this.context;
-    const noise = ctx.createBufferSource();
-    noise.buffer = this.createNoiseBuffer(ctx, 2.4);
-    noise.loop = true;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 780;
-    filter.Q.value = 1.1;
+    const start = ctx.currentTime + 0.01;
+    const length = Math.max(0.25, duration);
+    const end = start + length;
+    const wetness = Math.max(0, Math.min(1, coat));
+
+    const source = ctx.createBufferSource();
+    source.buffer = this.createNoiseBuffer(ctx, length + 0.5);
+    // Ворс сдирается со стены: полоса шипит, с полного валика — ниже и влажнее
+    const wet = ctx.createBiquadFilter();
+    wet.type = 'bandpass';
+    wet.Q.value = 0.85;
+    wet.frequency.setValueAtTime(820 - 140 * wetness, start);
+    wet.frequency.linearRampToValueAtTime(1040 - 120 * wetness, end - 0.2);
+    // Масса краски: глухой низ под шипением
+    const body = ctx.createBiquadFilter();
+    body.type = 'lowpass';
+    body.frequency.value = 300;
+    const bodyGain = ctx.createGain();
+    bodyGain.gain.value = 0.32 + 0.2 * wetness;
+
     const gain = ctx.createGain();
-    gain.gain.value = 0.0001;
-    noise.connect(filter).connect(gain).connect(this.sfx);
-    noise.start();
-    this.rollerSource = noise;
-    this.rollerGain = gain;
+    const peak = 0.085 + 0.07 * wetness;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(peak * 1.5, start + 0.055); // мокрый чавк
+    gain.gain.exponentialRampToValueAtTime(peak, start + 0.24);
+    gain.gain.setValueAtTime(peak, Math.max(start + 0.3, end - 0.2));
+    gain.gain.exponentialRampToValueAtTime(0.0001, end);
+
+    // Липкое дрожание: ворс залипает и срывается 11–17 раз в секунду.
+    // Без него звук валика неотличим от пылесоса.
+    const flutter = ctx.createOscillator();
+    flutter.type = 'triangle';
+    flutter.frequency.setValueAtTime(11, start);
+    flutter.frequency.linearRampToValueAtTime(17, end);
+    const flutterGain = ctx.createGain();
+    flutterGain.gain.value = peak * 0.45;
+    flutter.connect(flutterGain).connect(gain.gain);
+
+    source.connect(wet).connect(gain);
+    source.connect(body).connect(bodyGain).connect(gain);
+    gain.connect(this.sfx);
+    source.start(start);
+    source.stop(end + 0.06);
+    flutter.start(start);
+    flutter.stop(end + 0.06);
+
+    this.strokeGain = gain;
+    this.strokeNodes = [source, flutter];
+
+    // Чавк в начале и отрыв рукава в конце — по расписанию, чтобы не зависеть от кадров
+    this.noiseBurst(0.16, 0.05 + 0.04 * wetness, 460, 'lowpass', 0);
+    this.tone(220, 118, 'sine', 0.13, 0.05 + 0.04 * wetness, 0);
+    this.noiseBurst(0.22, 0.05 + 0.03 * wetness, 1750, 'highpass', length - 0.09);
+    this.tone(150, 92, 'sine', 0.1, 0.035, length - 0.05);
   }
 
-  /** 0 — валик стоит, 1 — вовсю трёт. */
-  setRollerIntensity(value: number): void {
-    const gain = this.rollerGain;
-    if (!gain || !this.context) return;
-    const target = Math.max(0.0001, Math.min(0.16, value * 0.16));
-    gain.gain.cancelScheduledValues(this.context.currentTime);
-    gain.gain.setTargetAtTime(target, this.context.currentTime, 0.05);
-  }
-
-  stopRoller(): void {
-    try {
-      this.rollerSource?.stop();
-    } catch {
-      // источник уже остановлен — это нормально
-    }
-    this.rollerSource = null;
-    this.rollerGain = null;
+  /** Оборвать звук мазка: выход из покраски, пауза, конец прохода. */
+  stopRollerStroke(fade = 0.14): void {
+    const ctx = this.context;
+    const gain = this.strokeGain;
+    const nodes = this.strokeNodes;
+    this.strokeGain = null;
+    this.strokeNodes = [];
+    if (!ctx || !gain) return;
+    const now = ctx.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setTargetAtTime(0.0001, now, Math.max(0.02, fade / 3));
+    window.setTimeout(() => {
+      for (const node of nodes) {
+        try {
+          node.stop();
+        } catch {
+          // уже остановлен
+        }
+      }
+      try {
+        gain.disconnect();
+      } catch {
+        // уже отключён
+      }
+    }, fade * 1000 + 260);
   }
 
   // ——— звуки мяча и кольца (задача 8) ——————————————————————————
@@ -470,7 +524,13 @@ export class AudioSystem {
     this.noiseBurst(0.85, 0.05 + 0.05 * power, 1400, 'bandpass');
   }
 
-  private noiseBurst(duration: number, peak: number, frequency: number, type: BiquadFilterType): void {
+  private noiseBurst(
+    duration: number,
+    peak: number,
+    frequency: number,
+    type: BiquadFilterType,
+    delay = 0,
+  ): void {
     if (!this.context || !this.sfx) return;
     const ctx = this.context;
     const source = ctx.createBufferSource();
@@ -479,7 +539,7 @@ export class AudioSystem {
     filter.type = type;
     filter.frequency.value = frequency;
     const gain = ctx.createGain();
-    const start = ctx.currentTime;
+    const start = ctx.currentTime + delay;
     gain.gain.setValueAtTime(0.0001, start);
     gain.gain.exponentialRampToValueAtTime(peak, start + 0.012);
     gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
@@ -504,7 +564,7 @@ export class AudioSystem {
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.visibilityHandler);
     }
-    this.stopRoller();
+    this.stopRollerStroke(0.05);
     this.musicEngine?.dispose();
     this.musicEngine = null;
     this.ambienceStarted = false;
