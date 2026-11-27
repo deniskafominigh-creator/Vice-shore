@@ -12,6 +12,9 @@ import { MusicEngine, type MusicMood, type MusicStinger } from '../audio/Music';
 
 export type UiSoundKind = 'hover' | 'click' | 'back' | 'confirm';
 
+/** Каналы телевизора: от них зависит звук в комнате (TvSet). */
+export type TvChannelName = 'football' | 'news' | 'weather';
+
 export class AudioSystem {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -342,6 +345,119 @@ export class AudioSystem {
   }
 
   /** Свисток арбитра (задача 22): два тона с дрожанием — слышно на весь стадион. */
+  // ————————————————————————————————————————————————————————————————
+  //  Телевизор (сборка v18): гул стадиона, студия, прибой — и голосовые дорожки
+  // ————————————————————————————————————————————————————————————————
+
+  private tvGain: GainNode | null = null;
+  private tvNodes: Array<AudioScheduledSourceNode> = [];
+  private tvChannel: TvChannelName | null = null;
+
+  /** Включить «звук из телевизора» на канале. Повторный вызов меняет канал. */
+  startTv(channel: TvChannelName): void {
+    const ctx = this.context;
+    const master = this.master;
+    if (!ctx || !master) return;
+    if (this.tvChannel === channel && this.tvGain) return;
+    this.stopTv(0.12);
+    this.tvChannel = channel;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    gain.connect(master);
+    this.tvGain = gain;
+
+    const buffer = this.createNoiseBuffer(ctx, 4);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    noise.loop = true;
+    const filter = ctx.createBiquadFilter();
+    const level = ctx.createGain();
+    if (channel === 'football') {
+      // Трибуны: широкий шумовой гул с медленной волной
+      filter.type = 'bandpass';
+      filter.frequency.value = 620;
+      filter.Q.value = 0.55;
+      level.gain.value = 0.5;
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.17;
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.value = 180;
+      lfo.connect(lfoGain).connect(filter.frequency);
+      lfo.start();
+      this.tvNodes.push(lfo);
+    } else if (channel === 'news') {
+      // Студия: ровный «воздух» и низкий гул аппаратуры
+      filter.type = 'lowpass';
+      filter.frequency.value = 1100;
+      level.gain.value = 0.1;
+      const hum = ctx.createOscillator();
+      hum.type = 'sine';
+      hum.frequency.value = 56;
+      const humGain = ctx.createGain();
+      humGain.gain.value = 0.05;
+      hum.connect(humGain).connect(gain);
+      hum.start();
+      this.tvNodes.push(hum);
+    } else {
+      // Погода: прибой и тихая «подложка» из трёх нот
+      filter.type = 'lowpass';
+      filter.frequency.value = 760;
+      level.gain.value = 0.14;
+      for (const [frequency, value] of [
+        [220, 0.008],
+        [330, 0.006],
+        [440, 0.004],
+      ] as const) {
+        const pad = ctx.createOscillator();
+        pad.type = 'sine';
+        pad.frequency.value = frequency;
+        const padGain = ctx.createGain();
+        padGain.gain.value = value;
+        pad.connect(padGain).connect(gain);
+        pad.start();
+        this.tvNodes.push(pad);
+      }
+    }
+    noise.connect(filter).connect(level).connect(gain);
+    noise.start();
+    this.tvNodes.push(noise);
+    gain.gain.setTargetAtTime(0.55, ctx.currentTime, 0.25);
+  }
+
+  /** Плавно выключить звук канала (fade — сколько секунд гасить). */
+  stopTv(fade = 0.25): void {
+    const ctx = this.context;
+    const gain = this.tvGain;
+    this.tvGain = null;
+    this.tvChannel = null;
+    if (!ctx || !gain) return;
+    gain.gain.setTargetAtTime(0, ctx.currentTime, Math.max(0.02, fade / 3));
+    const nodes = this.tvNodes.splice(0);
+    window.setTimeout(() => {
+      for (const node of nodes) {
+        try {
+          node.stop();
+        } catch {
+          // уже остановлен
+        }
+      }
+      try {
+        gain.disconnect();
+      } catch {
+        // уже отключён
+      }
+    }, fade * 1000 + 400);
+  }
+
+  /** Громкость телевизора падает с расстоянием: у экрана слышно, на улице нет. */
+  setTvDistance(distance: number): void {
+    const ctx = this.context;
+    const gain = this.tvGain;
+    if (!ctx || !gain) return;
+    const falloff = 1 - Math.min(1, Math.max(0, distance - 1.2) / 12);
+    gain.gain.setTargetAtTime(0.55 * falloff * this.settings.get('volumeSfx'), ctx.currentTime, 0.12);
+  }
+
   playWhistle(short = true): void {
     const length = short ? 0.2 : 0.42;
     this.tone(2340, 2260, 'sine', 0.13, length);

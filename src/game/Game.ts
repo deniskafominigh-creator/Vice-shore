@@ -34,6 +34,7 @@ import { BallMission } from './BallMission';
 import { Football } from './Football';
 import { RenderPipeline } from './RenderPipeline';
 import { VoiceBank } from './VoiceBank';
+import { TvSet, TV_LABELS } from './TvSet';
 import { StreetLife } from './StreetLife';
 import { FootballMatch, type MatchSound } from './FootballMatch';
 import { EndOfDay } from './EndOfDay';
@@ -108,6 +109,10 @@ export class Game {
   private talkClosedAt = -Infinity;
   /** Герой уже на территории стадиона (для одноразового события входа). */
   private atStadium = false;
+  /** Телевизор в гостиной (сборка v18): экран, звук и голос канала. */
+  private tv: TvSet | null = null;
+  /** Подсказка про телевизор показывается один раз за подход. */
+  private tvPrompted = false;
   /** Озвучка героя (задача 9). */
   dialogues: DialogueSystem | null = null;
   /** Определение устройства: телефон/планшет/компьютер (задача 11). */
@@ -339,6 +344,8 @@ export class Game {
     this.paintMission?.dispose();
     this.ballMission?.dispose();
     this.football?.dispose();
+    this.tv?.dispose();
+    this.tv = null;
     this.character?.dispose();
     this.world?.dispose();
     this.pipeline.dispose();
@@ -351,6 +358,8 @@ export class Game {
   // ——— внутреннее ————————————————————————————————————————————
 
   private async buildWorld(assets: LoadedAssets): Promise<void> {
+    this.tv?.dispose();
+    this.tv = null;
     this.world?.dispose();
     this.world = new World(this.renderer, assets, this.settings.get('quality'));
     this.freeCamera.setBounds(this.world.bounds);
@@ -487,6 +496,10 @@ export class Game {
       },
     });
 
+    // ——— телевизор в гостиной (сборка v18) —————————————————————
+    // Экран уже стоит в интерьере; здесь к нему подключаются каналы, звук и голос.
+    this.tv = new TvSet({ tv: island.interior.tv, audio: this.audio, scene: this.world.scene });
+
     // ——— миссия 02: мяч и два гола (задача 8) —————————————————————
     this.ballMission?.dispose();
     this.ballMission = new BallMission(this);
@@ -567,6 +580,9 @@ export class Game {
     character.setJump(this.player.jumpPhase01, this.player.isAirborne);
 
     this.thirdPersonCamera.update(dt, this.player.position, island.collisions);
+
+    // Телевизор: подойти, включить, переключать каналы (сборка v18)
+    this.updateTv(dt);
 
     // Жизнь поверх героя (задача 22): часы, соседи, матч, катсцена
     this.updateClockAndLife(dt);
@@ -843,6 +859,61 @@ export class Game {
       );
     }
     if (this.input.wasPressed('KeyE')) this.openTalk();
+  }
+
+  // ——— телевизор в гостиной (сборка v18) ————————————————————————
+
+  /** Сколько роликов озвучки телевизора попало в сборку — для проверок. */
+  get tvClips(): number {
+    return this.tv?.clipCount ?? 0;
+  }
+
+  /** Что сейчас показывает телевизор: null — выключен. */
+  get tvChannel(): string | null {
+    return this.tv?.channelLabel ?? null;
+  }
+
+  private updateTv(dt: number): void {
+    const tv = this.tv;
+    if (!tv) return;
+    const tvInfo = this.world?.island.interior.tv;
+    if (!tvInfo) return;
+    const spot = tvInfo.standAt;
+    const dx = this.player.position.x - spot.x;
+    const dz = this.player.position.z - spot.z;
+    const distance = Math.hypot(dx, dz);
+    const near = distance < 2.4 && Math.abs(this.player.position.y - spot.y) < 2.2;
+    tv.setProximity(near ? distance : 999);
+
+    if (!near) {
+      this.tvPrompted = false;
+      this.touch.setTvMode(false);
+      return;
+    }
+    // Телевизор занимает клавишу E, пока герой стоит у экрана: касса и миссии
+    // находятся в других местах, поэтому перехват безопасен.
+    if (!this.tvPrompted) {
+      this.tvPrompted = true;
+      this.ui.toast(
+        tv.isOn
+          ? `Телевизор · ${tv.channelLabel} · E — выключить, Q — следующий канал`
+          : 'Телевизор · E — включить',
+        'info',
+      );
+    }
+    this.touch.setTvMode(tv.isOn);
+    if (this.input.wasPressed('KeyE')) {
+      const on = tv.toggle();
+      this.audio.playUi('click');
+      this.ui.toast(on ? `Телевизор включён · ${tv.channelLabel}` : 'Телевизор выключен', on ? 'success' : 'info');
+      this.touch.setTvMode(on);
+    }
+    if (tv.isOn && this.input.wasPressed('KeyQ')) {
+      const channel = tv.next();
+      this.audio.playUi('hover');
+      this.ui.toast(`Канал: ${TV_LABELS[channel]}`, 'info');
+    }
+    tv.update(dt);
   }
 
   // ——— разговор с кассиром (задача 18) ————————————————————————

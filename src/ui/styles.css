@@ -1469,6 +1469,25 @@ body {
   display: flex;
 }
 
+/* Телевизор включён: над кнопками появляется «КАНАЛ ›» */
+.touch-tv {
+  position: absolute;
+  right: var(--pad-r);
+  bottom: calc(var(--pad-b) + 118px);
+  display: none;
+  gap: 8px;
+  pointer-events: auto;
+  z-index: 3;
+}
+
+.touch-ui.is-tv .touch-tv {
+  display: flex;
+}
+
+.touch-ui.is-tv.is-painting .touch-tv {
+  display: none;
+}
+
 .touch-btn--small {
   position: static;
   min-width: 56px;

@@ -8,8 +8,23 @@ import type { CollisionWorld } from '../Colliders';
  *  Всё стоит на полу дома (y0), прижато к стенам без щелей и зазоров,
  *  ничего не перекрывает проём витража, через который входят с террасы. */
 
+/** Телевизор (сборка v18): экран-плоскость, который включает игрок. */
+export interface InteriorTv {
+  readonly mesh: THREE.Mesh;
+  /** Центр экрана в мировых координатах. */
+  readonly center: THREE.Vector3;
+  /** Куда смотрит экран: от стены в комнату. */
+  readonly facing: THREE.Vector3;
+  /** Точка, где стоит игрок, чтобы «подойти к телевизору». */
+  readonly standAt: THREE.Vector3;
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface InteriorResult {
   readonly group: THREE.Group;
+  /** Экран телевизора на медиа-стене: его материал подменяет `TvSet`. */
+  readonly tv: InteriorTv;
   /** Тёплые лампы: без них комната выглядит «мёртвой» — солнце внутрь почти не попадает. */
   readonly lights: THREE.PointLight[];
   readonly emissive: THREE.Mesh[];
@@ -243,6 +258,26 @@ export function buildInterior(
   part(materials.oakFurniture, [0.42, 0.5, 2.2], [mediaX, y0 + 0.25, centerZ + 1.6]);
   part(materials.screenDark, [0.06, 0.92, 1.62], [bounds.maxX - 0.05, y0 + 1.62, centerZ + 1.6]);
   part(materials.trim, [0.04, 1.0, 1.7], [bounds.maxX - 0.02, y0 + 1.62, centerZ + 1.6]);
+  // Экран — отдельная плоскость в 1 см перед тёмной панелью: картинку канала
+  // рисует `TvSet`, и ей нужен ровно один квад, а не весь корпус.
+  const tvWidth = 1.56;
+  const tvHeight = 0.86;
+  const tvMaterial = new THREE.MeshStandardMaterial({ color: 0x05070a, roughness: 0.44, metalness: 0.1 });
+  tvMaterial.name = 'tv-screen';
+  const tvMesh = new THREE.Mesh(new THREE.PlaneGeometry(tvWidth, tvHeight), tvMaterial);
+  tvMesh.name = 'tv-screen';
+  tvMesh.rotation.y = -Math.PI / 2;
+  tvMesh.position.set(bounds.maxX - 0.088, y0 + 1.62, centerZ + 1.6);
+  tvMesh.receiveShadow = false;
+  group.add(tvMesh);
+  const tv: InteriorTv = {
+    mesh: tvMesh,
+    center: tvMesh.position.clone(),
+    facing: new THREE.Vector3(-1, 0, 0),
+    standAt: new THREE.Vector3(bounds.maxX - 2.05, y0, centerZ + 1.6),
+    width: tvWidth,
+    height: tvHeight,
+  };
   // Колонки
   for (const offset of [-1.15, 1.15]) {
     part(materials.screenDark, [0.18, 0.3, 0.18], [mediaX, y0 + 0.66, centerZ + 1.6 + offset]);
@@ -352,5 +387,5 @@ export function buildInterior(
   group.add(diningLight);
   lights.push(diningLight);
 
-  return { group, lights, emissive };
+  return { group, lights, emissive, tv };
 }

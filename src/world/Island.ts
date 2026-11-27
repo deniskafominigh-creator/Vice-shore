@@ -75,7 +75,8 @@ export class Island {
   private readonly vegetation: VegetationResult;
   /** Дом: нужен катсцене конца дня (пол и границы комнаты). */
   readonly villa: VillaResult;
-  private readonly interior: InteriorResult;
+  /** Интерьер: телевизору нужен его экран (сборка v18). */
+  readonly interior: InteriorResult;
   private readonly geometries: THREE.BufferGeometry[] = [];
   /** Сколько мешей было и стало после склейки статики (для отчёта о бюджете). */
   mergeStats: { before: number; after: number } = { before: 0, after: 0 };

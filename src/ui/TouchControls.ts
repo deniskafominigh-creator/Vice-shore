@@ -39,6 +39,7 @@ export class TouchControls {
   private readonly actionLabel: HTMLElement;
   private readonly jumpButton: HTMLElement;
   private readonly extras: HTMLElement;
+  private readonly tvBar: HTMLElement;
   private readonly rotate: HTMLElement;
 
   private stickPointer: number | null = null;
@@ -48,6 +49,7 @@ export class TouchControls {
   private readonly lookPointers = new Map<number, { x: number; y: number }>();
   private pinchDistance = 0;
   private mode: TouchMode = 'world';
+  private tvActive = false;
   private visible = false;
 
   constructor(private readonly options: TouchControlsOptions) {
@@ -96,6 +98,13 @@ export class TouchControls {
       this.smallButton('›', 'следующая полоса', 'KeyD'),
     );
 
+    // Телевизор: одна кнопка «КАНАЛ» появляется, когда экран включён
+    this.tvBar = el(
+      'div',
+      { className: 'touch-tv' },
+      this.smallButton('КАНАЛ ›', 'следующий канал телевизора', 'KeyQ'),
+    );
+
     const pause = el(
       'button',
       { className: 'touch-pause', attrs: { type: 'button', 'aria-label': 'Пауза' } },
@@ -119,6 +128,7 @@ export class TouchControls {
       this.look,
       this.stick,
       this.extras,
+      this.tvBar,
       this.holdButton,
       this.actionButton,
       this.jumpButton,
@@ -158,6 +168,13 @@ export class TouchControls {
   }
 
   /** Режим меняет подписи и набор дополнительных кнопок. */
+  /** Телевизор включён и герой рядом: показываем кнопку переключения канала. */
+  setTvMode(active: boolean): void {
+    if (this.tvActive === active) return;
+    this.tvActive = active;
+    this.root.classList.toggle('is-tv', active);
+  }
+
   setMode(mode: TouchMode): void {
     if (this.mode === mode) return;
     this.mode = mode;
