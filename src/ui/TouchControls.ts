@@ -50,6 +50,7 @@ export class TouchControls {
   private pinchDistance = 0;
   private mode: TouchMode = 'world';
   private tvActive = false;
+  private rideMode = false;
   private visible = false;
 
   constructor(private readonly options: TouchControlsOptions) {
@@ -180,14 +181,23 @@ export class TouchControls {
     this.mode = mode;
     const painting = mode === 'painting';
     this.root.classList.toggle('is-painting', painting);
-    this.holdLabel.textContent = painting ? 'КРАСИТЬ' : 'ДЕРЖАТЬ';
-    this.actionLabel.textContent = painting ? 'ОТОЙТИ' : 'ДЕЙСТВИЕ';
+    this.holdLabel.textContent = painting ? 'КРАСИТЬ' : this.rideMode ? 'ТОЛЧОК' : 'ДЕРЖАТЬ';
+    this.actionLabel.textContent = painting ? 'ОТОЙТИ' : this.rideMode ? 'СОЙТИ' : 'ДЕЙСТВИЕ';
     if (!painting) this.releaseExtras();
+  }
+
+  /** Режим езды на лонгборде: большая кнопка толкает доску, Ⓔ — сойти. */
+  setRideMode(active: boolean): void {
+    if (this.rideMode === active) return;
+    this.rideMode = active;
+    this.root.classList.toggle('is-riding', active);
+    this.holdLabel.textContent = active ? 'ТОЛЧОК' : 'ДЕРЖАТЬ';
+    this.actionLabel.textContent = active ? 'СОЙТИ' : 'ДЕЙСТВИЕ';
   }
 
   /** Подпись большой кнопки снаружи (например, «БРОСОК», когда мяч в руках). */
   setHoldLabel(text: string): void {
-    if (this.mode === 'painting') return;
+    if (this.mode === 'painting' || this.rideMode) return;
     this.holdLabel.textContent = text;
   }
 

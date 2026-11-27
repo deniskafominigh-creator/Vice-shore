@@ -1,7 +1,7 @@
 {
   "name": "vice-shore",
   "private": true,
-  "version": "0.21.0",
+  "version": "0.22.0",
   "type": "module",
   "description": "VICE SHORE — 3D-игра от третьего лица в стиле GTA 6: вилла у моря, две миссии",
   "scripts": {
@@ -33,7 +33,8 @@
     "check:tv": "node tools/offline-run.mjs tools/offline/tv-check.ts",
     "check:settings": "node tools/offline-run.mjs tools/offline/settings-fps-check.ts",
     "check:perf": "node tools/offline-run.mjs tools/offline/perf-check.ts",
-    "check:paint": "node tools/offline-run.mjs tools/offline/paint-check.ts"
+    "check:paint": "node tools/offline-run.mjs tools/offline/paint-check.ts",
+    "check:board": "node tools/offline-run.mjs tools/offline/board-check.ts"
   },
   "devDependencies": {
     "@types/three": "^0.169.0",

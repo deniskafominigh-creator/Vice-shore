@@ -30,6 +30,7 @@ import { createStates } from './states';
 import { QuestSystem } from './QuestSystem';
 import { DialogueSystem } from './DialogueSystem';
 import { PaintMission } from './PaintMission';
+import { BoardRide } from './BoardRide';
 import { BallMission } from './BallMission';
 import { Football } from './Football';
 import { RenderPipeline } from './RenderPipeline';
@@ -46,9 +47,9 @@ const DEFAULT_BOUNDS = { minX: -13, maxX: 13, minZ: -10, maxZ: 10 } as const;
 /** Подсказка под схему управления (задача 11). */
 const HINTS = {
   keyboard:
-    'WASD — идти · Shift — бег · Space — прыжок · у мяча держи Space — удар · мышь — обзор · Esc — пауза',
+    'WASD — идти · Shift — бег · Space — прыжок · у мяча держи Space — удар · E у доски — катить · мышь — обзор · Esc — пауза',
   touch:
-    'Стик — идти · «ПРЫЖОК» — прыгать, у мяча держать — удар · свайп — обзор · «Держать» — красить и бросать · Ⓔ — действие · II — пауза',
+    'Стик — идти · «ПРЫЖОК» — прыгать, у мяча держать — удар · Ⓔ — действие, у доски — катить · свайп — обзор · II — пауза',
 } as const;
 
 /** Где герой относительно стадиона (задача 16): подсказки при входе. */
@@ -68,6 +69,8 @@ export class Game {
   readonly quests: QuestSystem;
   /** Первая миссия: предметы, покраска стены. Создаётся после сборки мира. */
   paintMission: PaintMission | null = null;
+  /** Лонгборд у калитки: первая свобода передвижения (сборка v22). */
+  ride: BoardRide | null = null;
   /** Вторая миссия: мяч, бросок, два гола (задача 8). */
   ballMission: BallMission | null = null;
   /** Мяч на стадионе с физикой и счётом (задача 16). */
@@ -291,6 +294,8 @@ export class Game {
     const island = this.world?.island;
     const saved = fromSave ? this.save.snapshot?.player : null;
     if (island) {
+      // Загрузка и новый день начинаются на ногах, а не на доске
+      this.ride?.cancel();
       if (saved) {
         this.player.setState(saved, island);
         this.thirdPersonCamera.look(0, 0);
@@ -347,6 +352,8 @@ export class Game {
     this.voices?.stop();
     this.audio.dispose();
     this.paintMission?.dispose();
+    this.ride?.dispose();
+    this.ride = null;
     this.ballMission?.dispose();
     this.football?.dispose();
     this.tv?.dispose();
@@ -428,6 +435,11 @@ export class Game {
     this.quests.load();
     this.paintMission = new PaintMission(this);
     this.paintMission.restore();
+
+    // ——— лонгборд у калитки (сборка v22): свобода передвижения ————————
+    this.ride?.dispose();
+    this.ride = new BoardRide(this);
+    this.ride.placeAtStart();
 
     // ——— уличные жители (задача 22): соседи ходят по улице ———————————
     this.street?.dispose();
@@ -538,7 +550,13 @@ export class Game {
       strafe: this.input.axis('KeyA', 'KeyD'),
       run: this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight'),
     };
-    this.player.update(dt, intent, this.thirdPersonCamera.yaw, island);
+    const riding = this.ride?.isRiding ?? false;
+    if (riding) {
+      // На доске герой не идёт: физика доски везёт его, руль — A/D или стик
+      this.ride?.drive(dt, intent.forward, intent.strafe, look);
+    } else {
+      this.player.update(dt, intent, this.thirdPersonCamera.yaw, island);
+    }
 
     // Space у мяча — зарядка удара, в остальных случаях — прыжок. Одна кнопка
     // на оба действия: рядом с мячом прыгать нечем, зато удар всегда под рукой.
@@ -551,7 +569,7 @@ export class Game {
       radius: this.player.radius,
     };
     const football = this.football;
-    if (this.input.wasPressed('Space')) {
+    if (!riding && this.input.wasPressed('Space')) {
       if (football && !this.player.isAirborne && football.startCharge(me)) {
         this.kickCharging = true;
         this.bus.emit('football:charge', { power: 0 });
@@ -560,7 +578,7 @@ export class Game {
       }
     }
 
-    if (football) {
+    if (football && !riding) {
       // Отпустили Space — удар накопленной силы.
       if (this.kickCharging && !this.input.isDown('Space')) {
         const power = football.releaseCharge(me);
@@ -579,12 +597,16 @@ export class Game {
     character.group.position.copy(this.player.position);
     // Поворот ставим целиком: катсцена кладёт героя на спину (x = π/2), и если
     // после неё менять только .y, герой «входит в новый день лёжа».
-    character.group.rotation.set(0, this.player.yaw, 0);
+    // Крен доски передаём всему телу: в повороте герой наклоняется вместе с ней
+    character.group.rotation.set(0, this.player.yaw, this.ride?.lean ?? 0);
     character.setLocomotion(this.player.speed01, this.player.phase);
     // Прыжок: клипа в модели нет — поза строится по фазе полёта (задача 16).
     character.setJump(this.player.jumpPhase01, this.player.isAirborne);
 
     this.thirdPersonCamera.update(dt, this.player.position, island.collisions);
+
+    // Лонгборд: подсказка рядом и посадка по E (сборка v22)
+    this.ride?.update(dt);
 
     // Телевизор: подойти, включить, переключать каналы (сборка v18)
     this.updateTv(dt);
@@ -784,6 +806,8 @@ export class Game {
     this.cutsceneActive = false;
     this.setActiveCamera(this.thirdPersonCamera.camera);
     if (!island || !character) return;
+    // Новый день начинается на ногах у виллы: доска остаётся там, где её оставили
+    this.ride?.cancel();
     this.clock.setTime(CLOCK.startHour, CLOCK.startMinute);
     this.clock.start();
     this.ui.setClockTime(this.clock.totalMinutes);

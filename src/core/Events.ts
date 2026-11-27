@@ -25,6 +25,10 @@ export interface GameEventMap {
   'paint:stroke': { id: string; coat: number };
   'paint:progress': { id: string; progress: number };
   'paint:completed': { id: string };
+  /** Лонгборд (сборка v22): толчок, посадка и сход. */
+  'board:push': { speed: number };
+  'board:mounted': { x: number; z: number };
+  'board:dismounted': { x: number; z: number };
   /** Вторая миссия: бросок, гол, промах. */
   'ball:throw': { id: string };
   'ball:scored': { goals: number; total: number };

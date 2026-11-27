@@ -24,6 +24,9 @@ export class AudioSystem {
   private ambience: GainNode | null = null;
 
   /** Звук текущего мазка: гасим его, если мазок оборвали (пауза, выход). */
+  private boardSource: AudioBufferSourceNode | null = null;
+  private boardRollGain: GainNode | null = null;
+  private boardFilter: BiquadFilterNode | null = null;
   private strokeGain: GainNode | null = null;
   private strokeNodes: AudioScheduledSourceNode[] = [];
 
@@ -272,6 +275,74 @@ export class AudioSystem {
   /** Капля краски упала на плёнку. */
   playSplat(): void {
     this.noiseBurst(0.09, 0.05, 1400, 'bandpass');
+  }
+
+  // ——— звук лонгборда (сборка v22) ——————————————————————————————
+
+  /** Колёса по асфальту: петля шороха, громкость и тон — по скорости.
+   *  На траве звук глуше и ниже: там доска не катится, а трясётся. */
+  startBoardRoll(): void {
+    if (this.boardSource || !this.context || !this.sfx || this.context.state !== 'running') return;
+    const ctx = this.context;
+    const noise = ctx.createBufferSource();
+    noise.buffer = this.createNoiseBuffer(ctx, 2.6);
+    noise.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 700;
+    filter.Q.value = 0.9;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.0001;
+    noise.connect(filter).connect(gain).connect(this.sfx);
+    noise.start();
+    this.boardSource = noise;
+    this.boardFilter = filter;
+    this.boardRollGain = gain;
+  }
+
+  /** speed01 — 0..1, offRoad — трава, speed — м/с (для «частоты» шороха). */
+  setBoardRoll(speed01: number, offRoad: boolean, speed = 0): void {
+    const ctx = this.context;
+    const gain = this.boardRollGain;
+    const filter = this.boardFilter;
+    if (!ctx || !gain || !filter) return;
+    const value = Math.max(0, Math.min(1, speed01));
+    const now = ctx.currentTime;
+    // Доска стоит — шороха нет: иначе звук «шипит в тишине»
+    const target = speed < 0.15 ? 0.0001 : 0.02 + 0.1 * value;
+    gain.gain.setTargetAtTime(target, now, 0.09);
+    filter.frequency.setTargetAtTime((offRoad ? 420 : 620) + 620 * value, now, 0.12);
+  }
+
+  /** Толчок ногой: короткий шаркающий удар по асфальту. */
+  playBoardPush(): void {
+    this.noiseBurst(0.16, 0.06, 900, 'bandpass');
+    this.tone(120, 90, 'sine', 0.09, 0.03);
+  }
+
+  stopBoardRoll(fade = 0.16): void {
+    const ctx = this.context;
+    const gain = this.boardRollGain;
+    const source = this.boardSource;
+    const filter = this.boardFilter;
+    this.boardRollGain = null;
+    this.boardSource = null;
+    this.boardFilter = null;
+    if (!ctx || !gain) return;
+    gain.gain.setTargetAtTime(0.0001, ctx.currentTime, Math.max(0.02, fade / 3));
+    window.setTimeout(() => {
+      try {
+        source?.stop();
+      } catch {
+        // уже остановлен
+      }
+      try {
+        gain.disconnect();
+        filter?.disconnect();
+      } catch {
+        // уже отключён
+      }
+    }, fade * 1000 + 260);
   }
 
   /** Мазок валиком — один звук на один проход снизу вверх.
@@ -565,6 +636,7 @@ export class AudioSystem {
       document.removeEventListener('visibilitychange', this.visibilityHandler);
     }
     this.stopRollerStroke(0.05);
+    this.stopBoardRoll(0.05);
     this.musicEngine?.dispose();
     this.musicEngine = null;
     this.ambienceStarted = false;

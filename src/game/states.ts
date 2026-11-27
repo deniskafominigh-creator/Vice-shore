@@ -157,8 +157,11 @@ class PlayingState implements GameState {
 
     // Третье лицо: герой идёт, камера едет за плечом (задача 6)
     game.updatePlayer(dt, look);
-    game.paintMission?.update(dt);
-    game.ballMission?.update(dt);
+    // На доске герой не красит и не берёт мяч: подсказки миссий молчат
+    if (!game.ride?.isRiding) {
+      game.paintMission?.update(dt);
+      game.ballMission?.update(dt);
+    }
   }
 }
 
