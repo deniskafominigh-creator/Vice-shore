@@ -14,6 +14,7 @@ import { buildTown, type TownResult } from './island/Town';
 import { buildStadium, type StadiumResult } from './island/Stadium';
 import { buildDetails, type DetailsResult } from './island/Details';
 import { buildGrass, type GrassResult } from './island/GrassField';
+import { buildWildFlora, type FloraResult } from './island/WildFlora';
 import { mergeStaticMeshes } from './island/mergeStatic';
 import type { AuditNode } from './SceneAudit';
 import { CollisionWorld } from './Colliders';
@@ -50,10 +51,12 @@ export class Island {
   readonly stadium: StadiumResult;
   /** Поле травы: один InstancedMesh с ветром (задача 13). */
   readonly grass: GrassResult;
+  /** Дикая флора (сборка v16): луговая трава, камыш у обрыва и цветы. */
+  readonly flora: FloraResult;
   readonly details: DetailsResult;
   /** Всего предметов декорации на острове — для отчёта о детализации. */
   get decorationCount(): number {
-    return this.town.objectCount + this.grass.instances;
+    return this.town.objectCount + this.grass.instances + this.flora.instances;
   }
 
   private readonly materials: IslandMaterials;
@@ -94,6 +97,9 @@ export class Island {
       [...this.town.occupied, ...this.stadium.clearings, ...this.details.occupied],
       9000,
     );
+    // Дикая флора — тем же списком «занято»: под домами, на поле и на площадках
+    // цветов быть не должно, а луга между ними как раз и заполняются.
+    this.flora = buildWildFlora([...this.town.occupied, ...this.stadium.clearings, ...this.details.occupied]);
 
     this.group.add(
       ground,
@@ -107,6 +113,7 @@ export class Island {
       this.town.group,
       this.stadium.group,
       this.grass.group,
+      this.flora.group,
       this.details.group,
       distantShore,
     );
@@ -179,6 +186,7 @@ export class Island {
   update(elapsed: number, eye?: THREE.Vector3): void {
     this.vegetation.update(elapsed);
     this.grass.update(elapsed, eye);
+    this.flora.update(elapsed);
     this.details.update(elapsed, eye);
   }
 
@@ -238,6 +246,7 @@ export class Island {
     for (const geometry of new Set(this.geometries)) geometry.dispose();
     this.renovation.wall.dispose();
     this.grass.dispose();
+    this.flora.dispose();
     this.details.dispose();
     this.town.dispose();
     this.materials.dispose();
