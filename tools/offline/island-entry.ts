@@ -10,6 +10,8 @@ import { buildGround } from '../../src/world/island/Ground';
 import { buildFence } from '../../src/world/island/Fence';
 import { buildProps, buildDistantShore } from '../../src/world/island/Props';
 import { buildTown } from '../../src/world/island/Town';
+import { buildGrove } from '../../src/world/island/Grove';
+import { buildRoadside } from '../../src/world/island/Roadside';
 import { buildStadium } from '../../src/world/island/Stadium';
 import { auditScene } from '../../src/world/SceneAudit';
 
@@ -17,7 +19,18 @@ import { auditScene } from '../../src/world/SceneAudit';
 const makeCanvas = (): Record<string, unknown> => {
   const ctx = new Proxy({}, {
     get(_t, prop: string) {
-      if (prop === 'getImageData') return () => ({ data: new Uint8ClampedArray(4) });
+      // Карты нормалей (роща) читают реальные данные: отдаём буфер нужного размера
+      if (prop === 'getImageData') {
+        return (_x: number, _y: number, w: number, h: number) => ({
+          data: new Uint8ClampedArray(Math.max(4, w * h * 4)).fill(150),
+          width: w,
+          height: h,
+        });
+      }
+      if (prop === 'createImageData') {
+        return (w: number, h: number) => ({ data: new Uint8ClampedArray(Math.max(4, w * h * 4)), width: w, height: h });
+      }
+      if (prop === 'putImageData') return () => undefined;
       if (prop === 'createLinearGradient' || prop === 'createRadialGradient') {
         return () => ({ addColorStop: () => undefined });
       }
@@ -78,8 +91,14 @@ modules.push(['ground', buildGround(m)]);
 modules.push(['fence', buildFence(m, c)]);
 modules.push(['props', buildProps(m)]);
 modules.push(['distantShore', buildDistantShore()]);
-modules.push(['town', buildTown(m, c).group]);
-modules.push(['stadium', buildStadium(m, c).group]);
+const town = buildTown(m, c);
+modules.push(['town', town.group]);
+const stadium = buildStadium(m, c);
+modules.push(['stadium', stadium.group]);
+// Сборка v17: роща и обочина в том же аудите, что и остальные модули
+const grove = buildGrove([...town.occupied, ...stadium.clearings], c);
+modules.push(['grove', grove.group]);
+modules.push(['roadside', buildRoadside(m, c, grove.trunks).group]);
 
 let total = 0;
 for (const [name, node] of modules) {

@@ -27,7 +27,9 @@
     "check:match": "node tools/offline-run.mjs tools/offline/match-check.ts",
     "check:match:live": "node tools/offline-run.mjs tools/offline/match-live-check.ts",
     "check:cutscene": "node tools/offline-run.mjs tools/offline/cutscene-check.ts",
-    "check:flora": "node tools/offline-run.mjs tools/offline/flora-check.ts"
+    "check:flora": "node tools/offline-run.mjs tools/offline/flora-check.ts",
+    "check:grove": "node tools/offline-run.mjs tools/offline/grove-check.ts",
+    "check:roadside": "node tools/offline-run.mjs tools/offline/roadside-check.ts"
   },
   "devDependencies": {
     "@types/three": "^0.169.0",

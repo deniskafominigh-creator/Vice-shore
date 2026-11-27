@@ -103,7 +103,7 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
   };
 
   // ——— материалы-варианты: три оттенка стен и вода бассейна ————————
-  const wallVariants = [0.0, 0.06, -0.045].map((tint, index) => {
+  const wallVariants = [0.0, 0.06, -0.045, 0.1, 0.025].map((tint, index) => {
     const material = materials.plaster.clone();
     material.color.offsetHSL(0, index === 1 ? 0.02 : 0, tint);
     material.name = `town-wall-${index}`;
@@ -126,6 +126,38 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
   });
   lampGlow.name = 'town-lamp-glow';
 
+  // Полосатый тент над входом: рисуется кодом, как и остальные поверхности.
+  const awningMaterial = (() => {
+    const el = document.createElement('canvas');
+    el.width = 64;
+    el.height = 64;
+    const ctx = el.getContext('2d');
+    if (ctx) {
+      for (let i = 0; i < 8; i += 1) {
+        ctx.fillStyle = i % 2 === 0 ? '#f6efe2' : '#d9714f';
+        ctx.fillRect(i * 8, 0, 8, 64);
+      }
+      ctx.fillStyle = 'rgba(0,0,0,0.09)';
+      for (let i = 0; i < 64; i += 4) ctx.fillRect(0, i, 64, 1);
+    }
+    const texture = new THREE.CanvasTexture(el);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(3, 1);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.85, side: THREE.DoubleSide });
+    material.name = 'town-awning';
+    return material;
+  })();
+
+  // Ставни: три цвета — дома перестают быть близнецами
+  const shutterVariants = [0x3f6f74, 0xb4623f, 0x2f4a63].map((color, index) => {
+    const material = materials.wood.clone();
+    material.color.setHex(color);
+    material.name = `town-shutter-${index}`;
+    return material;
+  });
+
   const roofMaterial = (spec: HouseSpec): THREE.Material => {
     // Цвет крыши из спецификации → ближайший готовый материал (без новых текстур)
     const palette = [materials.terracotta, materials.darkRoof, materials.metal, materials.court];
@@ -147,6 +179,9 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
 
     const wall = wallVariants[index % wallVariants.length]!;
     const roof = roofMaterial(spec);
+    const shutter = shutterVariants[index % shutterVariants.length]!;
+    /** Силуэт дома: 0 — плоская кровля, 1 — двускатная, 2 — односкатная с садом. */
+    const roofStyle = index % 3;
     const halfW = spec.width / 2;
     const halfD = spec.depth / 2;
     const twoFloors = spec.floors === 1;
@@ -219,6 +254,18 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     add(house, box(materials.white, [0.1, 0.5, 0.1], [doorWidth / 2 + 0.4, wallFoot + 2.14, frontOut + 0.9]));
     // Ступень перед дверью
     add(house, box(materials.stone, [doorWidth + 0.7, 0.12, 0.7], [0, 0.06, frontOut + 0.42]));
+    // Полосатый тент над входом — у половины домов, чтобы фасады различались
+    if (index % 2 === 1) {
+      const awning = box(awningMaterial, [doorWidth + 2.0, 0.05, 1.2], [0, wallFoot + 2.95, frontOut + 0.62]);
+      awning.rotation.x = -0.3;
+      add(house, awning);
+      add(house, box(awningMaterial, [doorWidth + 2.0, 0.14, 0.035], [0, wallFoot + 2.77, frontOut + 1.16]));
+      for (const side of [-1, 1] as const) {
+        const strut = box(materials.metal, [0.04, 0.5, 0.04], [side * (doorWidth / 2 + 0.9), wallFoot + 2.68, frontOut + 1.1]);
+        strut.rotation.x = 0.3;
+        add(house, strut);
+      }
+    }
 
     // ——— окна: стекло, рама, импост, подоконник, ставни ———
     // Вынос деталей от наружной плоскости стены, м. Стекло — ближе всех к фасаду,
@@ -249,8 +296,8 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
         // Ставни-жалюзи. На втором этаже их нет: там стойки ограждения балкона
         // проходят вплотную к фасаду и цепляли створки.
         if (withShutters) {
-          add(house, box(materials.wood, [0.34, 1.44, 0.06], [x - 0.83, y, z + SHUTTER]));
-          add(house, box(materials.wood, [0.34, 1.44, 0.06], [x + 0.83, y, z + SHUTTER]));
+          add(house, box(shutter, [0.34, 1.44, 0.06], [x - 0.83, y, z + SHUTTER]));
+          add(house, box(shutter, [0.34, 1.44, 0.06], [x + 0.83, y, z + SHUTTER]));
         }
       }
     };
@@ -319,28 +366,87 @@ export function buildTown(materials: IslandMaterials, collisions: CollisionWorld
     // ——— крыша: плита с парапетом и ограждением кровли ———
     const roofY = wallTop;
     add(house, box(roof, [spec.width + 0.5, 0.26, spec.depth + 0.5], [0, roofY + 0.13, 0]));
-    // Парапет: четыре полосы с перепуском в углах
-    const parapetH = 0.55;
-    const parapet = (size: [number, number, number], position: [number, number, number]): void => {
-      add(house, box(materials.trim, size, position));
-    };
-    parapet([spec.width + 0.6 + SEAM, parapetH, 0.16], [0, roofY + 0.26 + parapetH / 2, halfD + 0.25]);
-    parapet([spec.width + 0.6 + SEAM, parapetH, 0.16], [0, roofY + 0.26 + parapetH / 2, -halfD - 0.25]);
-    parapet([0.16, parapetH, spec.depth + 0.4], [-halfW - 0.22, roofY + 0.26 + parapetH / 2, 0]);
-    parapet([0.16, parapetH, spec.depth + 0.4], [halfW + 0.22, roofY + 0.26 + parapetH / 2, 0]);
-    // Кровельные «гребни» — намёк на черепицу, читается сверху
-    const ridgeCount = Math.max(4, Math.round(spec.depth / 1.1));
-    for (let i = 0; i < ridgeCount; i += 1) {
-      const z = -halfD + (i + 0.5) * ((spec.depth + 0.2) / ridgeCount);
-      add(house, box(roof, [spec.width + 0.2, 0.07, 0.16], [0, roofY + 0.3, z]));
-    }
-    // Солнечные панели на части домов
-    if (index % 2 === 0) {
+    if (roofStyle === 0) {
+      // ——— плоская кровля: парапет и ограждение, как на референсе ———
+      const parapetH = 0.55;
+      const parapet = (size: [number, number, number], position: [number, number, number]): void => {
+        add(house, box(materials.trim, size, position));
+      };
+      parapet([spec.width + 0.6 + SEAM, parapetH, 0.16], [0, roofY + 0.26 + parapetH / 2, halfD + 0.25]);
+      parapet([spec.width + 0.6 + SEAM, parapetH, 0.16], [0, roofY + 0.26 + parapetH / 2, -halfD - 0.25]);
+      parapet([0.16, parapetH, spec.depth + 0.4], [-halfW - 0.22, roofY + 0.26 + parapetH / 2, 0]);
+      parapet([0.16, parapetH, spec.depth + 0.4], [halfW + 0.22, roofY + 0.26 + parapetH / 2, 0]);
+      // Кровельные «гребни» — намёк на черепицу, читается сверху
+      const ridgeCount = Math.max(4, Math.round(spec.depth / 1.1));
+      for (let i = 0; i < ridgeCount; i += 1) {
+        const z = -halfD + (i + 0.5) * ((spec.depth + 0.2) / ridgeCount);
+        add(house, box(roof, [spec.width + 0.2, 0.07, 0.16], [0, roofY + 0.3, z]));
+      }
+      // Солнечные панели на части домов
+      if (index % 2 === 0) {
+        for (let i = 0; i < 3; i += 1) {
+          add(
+            house,
+            box(materials.screenDark, [1.7, 0.06, 1.0], [-halfW + 1.6 + i * 1.85, roofY + 0.36, -halfD + 1.6]),
+          );
+        }
+      }
+    } else if (roofStyle === 1) {
+      // ——— двускатная черепичная крыша: два ската, фронтоны, конёк, труба ———
+      const rise = 1.7;
+      const overhang = 0.9;
+      const halfSpan = halfD + overhang;
+      const slope = Math.hypot(halfSpan, rise);
+      const tilt = Math.atan2(rise, halfSpan);
+      for (const side of [-1, 1] as const) {
+        const slab = box(roof, [spec.width + overhang * 2, 0.16, slope], [0, roofY + 0.3 + rise / 2, (side * halfSpan) / 2]);
+        slab.rotation.x = side * tilt;
+        add(house, slab);
+      }
+      // Конёк и ветровая доска по свесу
+      add(house, box(roof, [spec.width + overhang * 2 + 0.14, 0.12, 0.26], [0, roofY + 0.3 + rise + 0.04, 0]));
+      for (const side of [-1, 1] as const) {
+        add(house, box(materials.trim, [spec.width + overhang * 2 + 0.2, 0.1, 0.09], [0, roofY + 0.22, side * (halfSpan + 0.02)]));
+      }
+      // Фронтоны: треугольник из стены, чуть внутрь от плоскости скатов
+      for (const side of [-1, 1] as const) {
+        const shape = new THREE.Shape();
+        shape.moveTo(-halfD - 0.1, 0);
+        shape.lineTo(halfD + 0.1, 0);
+        shape.lineTo(0, rise);
+        shape.closePath();
+        const gable = new THREE.ExtrudeGeometry(shape, { depth: 0.12, bevelEnabled: false, curveSegments: 1 });
+        gable.rotateY(Math.PI / 2);
+        gable.translate(side > 0 ? halfW - 0.02 : -halfW - 0.1, roofY + 0.26, 0);
+        const mesh = new THREE.Mesh(gable, wall);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        add(house, mesh);
+      }
+      // Труба с шапкой
+      add(house, box(materials.stone, [0.62, 1.45, 0.62], [halfW * 0.45, roofY + 0.3 + rise * 0.68, -halfD * 0.42]));
+      add(house, box(materials.stone, [0.74, 0.12, 0.74], [halfW * 0.45, roofY + 0.3 + rise * 0.68 + 0.78, -halfD * 0.42]));
+    } else {
+      // ——— односкатная крыша с широким свесом и садом на кровле ———
+      const rise = 0.95;
+      const overhang = 0.95;
+      const spanZ = spec.depth + overhang * 2;
+      const slope = Math.hypot(spanZ, rise);
+      const tilt = Math.atan2(rise, spanZ);
+      const slab = box(roof, [spec.width + overhang * 2, 0.16, slope], [0, roofY + 0.3 + rise / 2, 0]);
+      slab.rotation.x = tilt;
+      add(house, slab);
+      // Капельник на высокой стороне и водосток на низкой
+      add(house, box(materials.trim, [spec.width + overhang * 2, 0.08, 0.14], [0, roofY + 0.3 + rise + 0.04, -halfD - overhang]));
+      add(house, box(materials.metal, [spec.width + overhang * 2 - 0.4, 0.09, 0.12], [0, roofY + 0.24, halfD + overhang]));
+      // Сад на кровле: три кашпо с зеленью на высокой стороне
       for (let i = 0; i < 3; i += 1) {
-        add(
-          house,
-          box(materials.screenDark, [1.7, 0.06, 1.0], [-halfW + 1.6 + i * 1.85, roofY + 0.36, -halfD + 1.6]),
-        );
+        const x = -halfW + 1.5 + (i * (spec.width - 3)) / 2;
+        add(house, box(materials.terracotta, [1.05, 0.34, 0.66], [x, roofY + 0.3 + rise * 0.8, -halfD + 0.85]));
+        const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.44, 1), materials.foliage);
+        bush.position.set(x, roofY + 0.3 + rise * 0.8 + 0.42, -halfD + 0.85);
+        bush.castShadow = true;
+        add(house, bush);
       }
     }
 

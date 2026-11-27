@@ -15,6 +15,8 @@ import { buildStadium, type StadiumResult } from './island/Stadium';
 import { buildDetails, type DetailsResult } from './island/Details';
 import { buildGrass, type GrassResult } from './island/GrassField';
 import { buildWildFlora, type FloraResult } from './island/WildFlora';
+import { buildGrove, type GroveResult } from './island/Grove';
+import { buildRoadside, type RoadsideResult } from './island/Roadside';
 import { mergeStaticMeshes } from './island/mergeStatic';
 import type { AuditNode } from './SceneAudit';
 import { CollisionWorld } from './Colliders';
@@ -53,10 +55,20 @@ export class Island {
   readonly grass: GrassResult;
   /** Дикая флора (сборка v16): луговая трава, камыш у обрыва и цветы. */
   readonly flora: FloraResult;
+  /** Роща (сборка v17): пинии, кипарисы, баньяны, жакаранды и оливы. */
+  readonly grove: GroveResult;
+  /** Обочина (сборка v17): фирменный забор, калитки, переход, остановка. */
+  readonly roadside: RoadsideResult;
   readonly details: DetailsResult;
   /** Всего предметов декорации на острове — для отчёта о детализации. */
   get decorationCount(): number {
-    return this.town.objectCount + this.grass.instances + this.flora.instances;
+    return (
+      this.town.objectCount +
+      this.grass.instances +
+      this.flora.instances +
+      this.grove.instances +
+      this.roadside.props
+    );
   }
 
   private readonly materials: IslandMaterials;
@@ -100,6 +112,14 @@ export class Island {
     // Дикая флора — тем же списком «занято»: под домами, на поле и на площадках
     // цветов быть не должно, а луга между ними как раз и заполняются.
     this.flora = buildWildFlora([...this.town.occupied, ...this.stadium.clearings, ...this.details.occupied]);
+    // Роща — после флоры и по тем же «занятым» местам: ствол не встанет в дом,
+    // в бассейн, на поле или на дорожку. Стволы сразу попадают в мир столкновений.
+    this.grove = buildGrove(
+      [...this.town.occupied, ...this.stadium.clearings, ...this.details.occupied],
+      this.collisions,
+    );
+    // Обочина строится последней: ей нужны стволы рощи, чтобы вырезать пролёты
+    this.roadside = buildRoadside(this.materials, this.collisions, this.grove.trunks);
 
     this.group.add(
       ground,
@@ -114,6 +134,8 @@ export class Island {
       this.stadium.group,
       this.grass.group,
       this.flora.group,
+      this.grove.group,
+      this.roadside.group,
       this.details.group,
       distantShore,
     );
@@ -135,6 +157,7 @@ export class Island {
         skip: ['stadium-scoreboard-face', 'stadium-ticket-sign-face', 'stadium-gate-sign-face'],
       }),
       mergeStaticMeshes(ground, { labelRoot: this.group }),
+      mergeStaticMeshes(this.roadside.group, { labelRoot: this.group }),
     ];
     this.mergeStats = {
       before: merged.reduce((sum, item) => sum + item.before, 0),
@@ -187,6 +210,7 @@ export class Island {
     this.vegetation.update(elapsed);
     this.grass.update(elapsed, eye);
     this.flora.update(elapsed);
+    this.grove.update(elapsed);
     this.details.update(elapsed, eye);
   }
 
@@ -247,6 +271,8 @@ export class Island {
     this.renovation.wall.dispose();
     this.grass.dispose();
     this.flora.dispose();
+    this.grove.dispose();
+    this.roadside.dispose();
     this.details.dispose();
     this.town.dispose();
     this.materials.dispose();
