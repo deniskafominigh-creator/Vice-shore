@@ -30,7 +30,8 @@
     "check:flora": "node tools/offline-run.mjs tools/offline/flora-check.ts",
     "check:grove": "node tools/offline-run.mjs tools/offline/grove-check.ts",
     "check:roadside": "node tools/offline-run.mjs tools/offline/roadside-check.ts",
-    "check:tv": "node tools/offline-run.mjs tools/offline/tv-check.ts"
+    "check:tv": "node tools/offline-run.mjs tools/offline/tv-check.ts",
+    "check:settings": "node tools/offline-run.mjs tools/offline/settings-fps-check.ts"
   },
   "devDependencies": {
     "@types/three": "^0.169.0",

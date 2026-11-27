@@ -818,11 +818,49 @@ body {
   color: #f7dda6;
 }
 
+/* ——— счётчик FPS (настройка «Показывать FPS») ————————————————— */
+
+.fps-badge {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  padding: 5px 10px;
+  border-radius: 9px;
+  background: rgba(4, 12, 18, 0.66);
+  border: 1px solid rgba(242, 246, 248, 0.12);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(242, 246, 248, 0.9);
+  pointer-events: none;
+  z-index: 16;
+}
+
+.fps-badge.is-hidden {
+  display: none;
+}
+
+.fps-badge[data-level='high'] {
+  color: #8ef0c8;
+  border-color: rgba(142, 240, 200, 0.32);
+}
+
+.fps-badge[data-level='mid'] {
+  color: #ffd479;
+  border-color: rgba(255, 212, 121, 0.32);
+}
+
+.fps-badge[data-level='low'] {
+  color: #ff9d8a;
+  border-color: rgba(255, 157, 138, 0.34);
+}
+
 /* ——— телеметрия кадра (F4) ————————————————————————————————————— */
 
 .debug {
   position: fixed;
-  top: 16px;
+  top: 52px;
   left: 16px;
   padding: 10px 14px;
   border-radius: 10px;

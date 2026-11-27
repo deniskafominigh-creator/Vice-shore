@@ -136,6 +136,12 @@ export class SettingsPanel extends Panel {
     );
 
     this.addRow(
+      'Показывать FPS',
+      'Счётчик кадров в секунду в левом верхнем углу — видно, как игра держит плавность',
+      this.buildSwitch(() => this.settings.get('showFps'), (value) => this.settings.set('showFps', value)),
+    );
+
+    this.addRow(
       'Подсказки управления',
       'Строка с клавишами внизу и в HUD миссии',
       this.buildSwitch(

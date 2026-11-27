@@ -1099,6 +1099,8 @@ export class Game {
     this.statsFrames = 0;
     this.statsTimer = 0;
     const info = this.renderer.info;
+    // Счётчик FPS в углу: сама цифра нужна всегда, а показывать её решает настройка
+    this.ui.setFps(fps);
     this.bus.emit('frame:stats', {
       fps,
       drawCalls: info.render.calls,

@@ -66,12 +66,15 @@ export class Ui {
   private readonly cutsceneCaption: HTMLElement;
   private readonly cutsceneTitle: HTMLElement;
   private readonly debug: HTMLElement;
+  /** Счётчик FPS (сборка v19): включается в настройках, живёт отдельно от телеметрии F4. */
+  private readonly fpsBadge: HTMLElement;
   private readonly shutdown: HTMLElement;
 
   /** Сюда `Game` кладёт сенсорное управление: интерфейс не создаёт его сам. */
   private readonly touchHolder = el('div', { className: 'touch-holder' });
   private readonly modals: Modal[] = [];
   private disposed = false;
+  private lastFps = 0;
 
   constructor(
     private readonly root: HTMLElement,
@@ -117,6 +120,7 @@ export class Ui {
     );
     this.debug = el('div', { className: 'debug' });
     this.debug.style.display = 'none';
+    this.fpsBadge = el('div', { className: 'fps-badge is-hidden' });
 
     this.menu = new MainMenu({
       onPlay: handlers.play,
@@ -170,6 +174,7 @@ export class Ui {
       this.mission.root,
       this.touchHolder,
       this.toasts.root,
+      this.fpsBadge,
       this.debug,
       this.menu.root,
       this.pauseMenu.root,
@@ -198,6 +203,8 @@ export class Ui {
     this.subtitle.dataset.font = values.subtitleFont;
     this.subtitle.dataset.backdrop = values.subtitleBackdrop;
     this.subtitle.classList.toggle('is-hidden', !values.subtitles);
+    // FPS: показываем, только если игрок сам включил счётчик в настройках
+    this.fpsBadge.classList.toggle('is-hidden', !values.showFps);
   }
 
   // ——— загрузка ——————————————————————————————————————————————
@@ -341,6 +348,26 @@ export class Ui {
 
   toast(text: string, tone: ToastTone = 'info'): void {
     this.toasts.show(text, tone, TIMING.toast * 1000);
+  }
+
+  /** Счётчик кадров: цифра обновляется раз в полсекунды вместе с телеметрией. */
+  setFps(fps: number | null): void {
+    if (fps === null) {
+      this.fpsBadge.textContent = '';
+      this.fpsBadge.classList.add('is-hidden');
+      return;
+    }
+    this.lastFps = Math.round(fps);
+    const value = `${this.lastFps}`;
+    this.fpsBadge.textContent = `${value} FPS`;
+    // Цвет — оценка плавности: зелёный 55+, жёлтый 40+, красный ниже
+    this.fpsBadge.dataset.level = this.lastFps >= 55 ? 'high' : this.lastFps >= 40 ? 'mid' : 'low';
+    this.fpsBadge.classList.toggle('is-hidden', !this.settings.get('showFps'));
+  }
+
+  /** Последнее измеренное значение — нужно проверкам и отладке. */
+  get fps(): number {
+    return this.lastFps;
   }
 
   setDebug(text: string | null): void {

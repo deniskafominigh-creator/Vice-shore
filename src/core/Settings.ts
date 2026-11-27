@@ -43,6 +43,8 @@ export interface GameSettings {
   depthOfField: boolean;
   /** Стиль часов сверху экрана (задача 22). */
   clockStyle: ClockStyle;
+  /** Счётчик FPS в углу экрана (сборка v19): для проверки плавности на телефоне. */
+  showFps: boolean;
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -66,6 +68,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   showMissionHud: true,
   depthOfField: true,
   clockStyle: 'neon',
+  showFps: false,
 };
 
 /** Проверка и приведение значений: испорченный localStorage не должен ломать запуск. */
@@ -119,6 +122,7 @@ export function sanitizeSettings(raw: Partial<Record<keyof GameSettings, unknown
       typeof raw.clockStyle === 'string' && CLOCK_STYLES.includes(raw.clockStyle as ClockStyle)
         ? (raw.clockStyle as ClockStyle)
         : DEFAULT_SETTINGS.clockStyle,
+    showFps: typeof raw.showFps === 'boolean' ? raw.showFps : DEFAULT_SETTINGS.showFps,
   };
 }
 
